@@ -306,61 +306,61 @@
 
 <script>
 // ---------- Kategorien-Mapping (OSM shop=* -> Nonfood-Gruppe) ----------
+// Nur große Filialisten / flächendeckende Nonfood-Konkurrenten —
+// bewusst KEINE Kioske, Boutiquen, Einzelläden, Autohäuser, Optiker, Juweliere etc.
 const CATEGORY_MAP = {
-  chemist: "Drogerie / Kosmetik",
-  cosmetics: "Drogerie / Kosmetik",
-  perfumery: "Drogerie / Kosmetik",
-  hairdresser_supply: "Drogerie / Kosmetik",
-  doityourself: "Baumarkt / Haushalt",
-  hardware: "Baumarkt / Haushalt",
-  houseware: "Baumarkt / Haushalt",
-  paint: "Baumarkt / Haushalt",
-  electronics: "Elektronik",
-  mobile_phone: "Elektronik",
-  computer: "Elektronik",
-  clothes: "Textilien / Mode",
-  shoes: "Textilien / Mode",
-  fabric: "Textilien / Mode",
-  fashion_accessories: "Textilien / Mode",
-  toys: "Spielwaren",
-  books: "Bücher / Schreibwaren",
-  stationery: "Bücher / Schreibwaren",
-  pet: "Tierbedarf",
-  garden_centre: "Garten / Pflanzen",
-  florist: "Garten / Pflanzen",
-  sports: "Sport & Freizeit",
-  outdoor: "Sport & Freizeit",
-  bicycle: "Sport & Freizeit",
-  department_store: "Kaufhaus (Vollsortiment Nonfood)",
-  variety_store: "Kaufhaus (Vollsortiment Nonfood)",
-  general: "Kaufhaus (Vollsortiment Nonfood)",
-  optician: "Optik",
-  jewelry: "Schmuck / Uhren",
-  watches: "Schmuck / Uhren",
-  car_parts: "Auto- / Kfz-Zubehör",
-  car: "Auto- / Kfz-Zubehör",
-  furniture: "Möbel / Einrichtung",
-  interior_decoration: "Möbel / Einrichtung",
-  gift: "Geschenke / Deko",
-  variety: "Geschenke / Deko",
-  candles: "Geschenke / Deko",
-  bag: "Accessoires",
-  video_games: "Elektronik",
-  appliance: "Elektronik / Haushaltsgeräte",
+  chemist: "Drogeriemarkt",
+  doityourself: "Baumarkt",
+  hardware: "Baumarkt",
+  electronics: "Elektromarkt",
+  department_store: "Kaufhaus",
+  variety_store: "Sonderposten / Nonfood-Discounter",
+  general: "Kaufhaus",
 };
 
 // Food-orientierte Betriebstypen, die trotzdem als Nonfood-Konkurrenz gelten
-// (Aktionsware / Randsortiment) — wichtig für Lebensmitteleinzelhandel
+// (Aktionsware / Randsortiment) — die eigentlichen Rewe/Edeka/Aldi/Lidl-Vergleichsgruppe.
+// "convenience" (Kioske, kleine Nahversorger) bewusst ausgeschlossen.
 const FOOD_WITH_NONFOOD = {
-  supermarket: "Supermarkt (Nonfood-Aktionsware möglich)",
-  convenience: "Convenience (kleines Nonfood-Randsortiment)",
-  discount: "Discounter (Nonfood-Aktionsware typisch)",
+  supermarket: "Supermarkt (Nonfood-Aktionsware)",
+  discount: "Discounter (Nonfood-Aktionsware)",
 };
+
+// Namens-Whitelist als Sicherheitsnetz: erfasst bekannte große Ketten auch dann,
+// wenn OSM sie untypisch/generisch getaggt hat.
+const BIG_BRAND_PATTERNS = [
+  /aldi/i, /lidl/i, /kaufland/i, /rewe/i, /edeka/i, /penny/i, /netto/i, /real\b/i,
+  /action\b/i, /tedi/i, /nanu[- ]?nana/i, /mäc[- ]geiz/i, /woolworth/i, /kodi\b/i,
+  /dm[- ]?drogerie/i, /rossmann/i, /müller\b/i,
+  /obi\b/i, /hornbach/i, /bauhaus/i, /toom\b/i, /hagebau/i,
+  /media ?markt/i, /saturn/i, /expert\b/i, /euronics/i
+];
+
+// Explizit ausschließen, selbst falls sie versehentlich passen würden
+const EXCLUDE_SHOP_TYPES = new Set([
+  'kiosk','boutique','car','car_parts','car_repair','motorcycle',
+  'clothes','shoes','jewelry','watches','optician','florist','gift',
+  'stationery','books','pet','toys','sports','furniture','bag',
+  'cosmetics','perfumery','hairdresser_supply','houseware','paint',
+  'fabric','fashion_accessories','outdoor','bicycle','garden_centre',
+  'interior_decoration','variety','candles','video_games','appliance',
+  'mobile_phone','computer','convenience'
+]);
 
 function categorize(tags){
   const shop = tags.shop;
+  const name = (tags.name || tags.brand || '');
+
+  if (EXCLUDE_SHOP_TYPES.has(shop)) return null;
+
   if (CATEGORY_MAP[shop]) return { group: CATEGORY_MAP[shop], isFoodStore:false };
   if (FOOD_WITH_NONFOOD[shop]) return { group: FOOD_WITH_NONFOOD[shop], isFoodStore:true };
+
+  // Fallback: bekannter Großfilialist, aber untypisch getaggt
+  if (BIG_BRAND_PATTERNS.some(p => p.test(name))) {
+    const isFood = /aldi|lidl|kaufland|rewe|edeka|penny|netto|real\b/i.test(name);
+    return { group: isFood ? "Supermarkt (Nonfood-Aktionsware)" : "Sonderposten / Nonfood-Discounter", isFoodStore: isFood };
+  }
   return null;
 }
 
