@@ -142,6 +142,98 @@
   }
   .tab-btn:hover{color:var(--petrol-2);}
   .tab-btn.active{color:var(--petrol);border-bottom-color:var(--amber);}
+  .tab-panel{animation:fadein 0.28s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  .legend{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:#7a7466;
+    margin-bottom:16px;
+  }
+  .legend .dot{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    margin-right:5px;
+  }
+  .legend .dot.petrol{background:var(--petrol-2);}
+  .legend .dot.amber{background:var(--amber-2);}
+  .web-intro{
+    padding:2px 18px 16px;
+    font-size:13px;
+    line-height:1.55;
+    color:#4a463c;
+  }
+  .web-links{
+    padding:0 18px 20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+    gap:10px;
+  }
+  .web-link-card{
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:2px;
+    padding:11px 12px;
+  }
+  .web-link-card .brand{
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    color:var(--ink);
+    margin-bottom:6px;
+    display:block;
+  }
+  .web-link-card a{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--petrol-2);
+    text-decoration:none;
+    border-bottom:1px dotted var(--petrol-2);
+    margin-right:10px;
+  }
+  .web-link-card a:hover{color:var(--amber-2);border-bottom-color:var(--amber-2);}
+  .summary-lead{
+    font-size:14.5px;
+    line-height:1.65;
+    padding:0 18px 6px;
+    color:var(--ink);
+  }
+  .summary-lead strong{color:var(--petrol);}
+  .rec-card{
+    margin:14px 18px;
+    border-left:3px solid var(--ok);
+    background:var(--paper);
+    padding:12px 14px;
+    border-radius:0 2px 2px 0;
+  }
+  .rec-card.mid{border-left-color:var(--amber-2);}
+  .rec-card.saturated{border-left-color:var(--line);opacity:0.75;}
+  .rec-card .rec-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    font-size:13px;
+    letter-spacing:0.3px;
+    color:var(--petrol);
+    margin-bottom:5px;
+  }
+  .rec-card .rec-tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    color:#7a7466;
+  }
+  .rec-card p{margin:0;font-size:13px;line-height:1.55;color:#4a463c;}
   .assort-group{margin-bottom:16px;}
   .assort-group h4{
     font-family:'Oswald',sans-serif;
@@ -356,7 +448,14 @@
     <nav class="tabs" id="tabs">
       <button class="tab-btn active" data-tab="markets">Märkte im Umkreis</button>
       <button class="tab-btn" data-tab="analysis">Analyse</button>
+      <button class="tab-btn" data-tab="web">Web-Recherche</button>
+      <button class="tab-btn" data-tab="summary">Empfehlung</button>
     </nav>
+
+    <div class="legend">
+      <span><i class="dot petrol"></i> Nonfood-Fachmarkt / Filialist</span>
+      <span><i class="dot amber"></i> Lebensmittelhändler mit Nonfood-Aktionsware</span>
+    </div>
 
     <div class="tab-panel" id="tab-markets">
       <div class="panel" style="margin-bottom:18px;">
@@ -391,6 +490,25 @@
       <div class="panel">
         <div class="panel-title"><span class="idx">03</span> Sortiment der Wettbewerber — wer führt was</div>
         <div id="assortmentBreakdown" style="padding:6px 18px 18px;"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-web" style="display:none;">
+      <div class="panel">
+        <div class="panel-title"><span class="idx">01</span> Web-Recherche — offene Marktabfrage</div>
+        <div class="web-intro">
+          Die Analyse links basiert auf OpenStreetMap-Daten — nicht jeder Standort ist dort vollständig erfasst.
+          Zur Ergänzung: ein Klick öffnet Google Maps bzw. die Google-Suche direkt zentriert auf deinen Standort,
+          damit du gezielt nach den großen Nonfood-Playern in der Umgebung suchen kannst.
+        </div>
+        <div id="webLinks" class="web-links"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-summary" style="display:none;">
+      <div class="panel">
+        <div class="panel-title"><span class="idx">01</span> Gebündelte Sortiments-Empfehlung</div>
+        <div id="summaryText" style="padding:6px 18px 22px;"></div>
       </div>
     </div>
 
@@ -435,7 +553,19 @@ const BIG_BRAND_PATTERNS = [
   /media ?markt/i, /saturn/i, /expert\b/i, /euronics/i
 ];
 
-// Explizit ausschließen, selbst falls sie versehentlich passen würden
+// Namensmuster, die auf Kiosk-/Mikro-Formate hindeuten — werden IMMER
+// ausgeschlossen, auch wenn der Name zufällig zu einer großen Marke passt
+// (z.B. "REWE To Go", "Netto Express" am Bahnhof sind keine echten
+// Nonfood-Konkurrenten, sondern Kioskgröße).
+const NAME_EXCLUDE_PATTERNS = [
+  /kiosk/i, /späti\b/i, /spätkauf/i, /trinkhalle/i, /büdchen/i, /\bbude\b/i,
+  /würstchenbude/i, /imbiss/i, /to.?go/i, /\bexpress\b/i, /trafik/i,
+  /presse\b/i, /zeitschriften/i, /\btabak\b/i, /bahnhofsshop/i, /tankstelle/i,
+  /shop\s*&\s*go/i
+];
+
+// Weitere Klein-/Fachformate, die keine relevante Nonfood-Sortimentsbreite
+// bieten und daher raus sollen.
 const EXCLUDE_SHOP_TYPES = new Set([
   'kiosk','boutique','car','car_parts','car_repair','motorcycle',
   'clothes','shoes','jewelry','watches','optician','florist','gift',
@@ -443,13 +573,20 @@ const EXCLUDE_SHOP_TYPES = new Set([
   'cosmetics','perfumery','hairdresser_supply','houseware','paint',
   'fabric','fashion_accessories','outdoor','bicycle','garden_centre',
   'interior_decoration','variety','candles','video_games','appliance',
-  'mobile_phone','computer','convenience'
+  'mobile_phone','computer','convenience',
+  'newsagent','tobacco','confectionery','greengrocer','bakery','butcher',
+  'seafood','alcohol','wine','beverages','deli','farm','e-cigarette',
+  'second_hand','charity','dry_cleaning','laundry','tailor','hairdresser',
+  'beauty','massage','tattoo','funeral_directors','locksmith','copyshop',
+  'printing','photo','travel_agency','ticket','lottery','betting',
+  'money_lender','pawnbroker'
 ]);
 
 function categorize(tags){
   const shop = tags.shop;
   const name = (tags.name || tags.brand || '');
 
+  if (NAME_EXCLUDE_PATTERNS.some(p => p.test(name))) return null;
   if (EXCLUDE_SHOP_TYPES.has(shop)) return null;
 
   if (CATEGORY_MAP[shop]) return { group: CATEGORY_MAP[shop], isFoodStore:false };
@@ -616,7 +753,78 @@ function renderOpportunities(catCounts, nonfoodShops){
   el.innerHTML = html;
 }
 
-// Fasst mehrfach erkannte Standorte desselben Marktes (z.B. Rewe bei 0,1 km
+// Konkrete, realistisch umsetzbare Randsortiment-Vorschläge je Kategorie —
+// gedacht für ein Nonfood-Zusatzsortiment im Lebensmitteleinzelhandel,
+// nicht für ein Vollsortiment wie beim Fachhändler.
+const SUGGESTION_MAP = {
+  "Drogeriemarkt": "Basis-Drogerieartikel: Pflege-, Hygiene- und Reinigungsprodukte als Randsortiment neben der Kasse.",
+  "Baumarkt": "Kleinteile-Sortiment: Batterien, Glühbirnen, Klebeband, einfache Werkzeuge, Saison-Gartenartikel.",
+  "Elektromarkt": "Kabel, Adapter, Batterien, kleine Haushaltsgeräte sowie Saisonelektronik (z.B. Grillzubehör, Lichterketten).",
+  "Kaufhaus": "Basis-Textilien, Haushaltswaren und Geschenkartikel als kleines Zusatzsortiment.",
+  "Sonderposten / Nonfood-Discounter": "Deko- und Geschenkartikel, Saisonware (Ostern, Weihnachten, Grillsaison), klassische Aktions-Nonfood-Ware.",
+};
+
+function buildRecommendations(catCounts){
+  const allGroups = Object.keys(CATEGORY_MAP).map(k => CATEGORY_MAP[k]);
+  const uniqueGroups = [...new Set(allGroups)];
+  return uniqueGroups.map(group => {
+    const count = catCounts[group] || 0;
+    let status, cls, tag;
+    if (count === 0){ status = 'Große Lücke — niemand besetzt dieses Segment im Radius.'; cls=''; tag='Klare Chance'; }
+    else if (count <= 2){ status = `Nur ${count} Anbieter im Radius — Platz für ein gezieltes Randsortiment.`; cls='mid'; tag='Chance'; }
+    else { status = `${count} Anbieter bereits vertreten — Segment ist umkämpft.`; cls='saturated'; tag='Gesättigt'; }
+    return { group, count, status, cls, tag, suggestion: SUGGESTION_MAP[group] || '' };
+  }).sort((a,b) => a.count - b.count);
+}
+
+function renderSummary(catCounts, nonfoodShops, radiusKm, addressLabel){
+  const el = document.getElementById('summaryText');
+  const recs = buildRecommendations(catCounts);
+  const foodCompetitors = nonfoodShops.filter(s => s.isFoodStore).length;
+  const totalNonfoodPlayers = nonfoodShops.length - foodCompetitors;
+
+  let lead = `<div class="summary-lead">
+    Im <strong>${radiusKm}-km-Radius</strong> um <strong>${addressLabel}</strong> wurden
+    <strong>${totalNonfoodPlayers}</strong> reine Nonfood-Filialisten und
+    <strong>${foodCompetitors}</strong> Lebensmittelhändler mit Nonfood-Aktionsware gefunden.
+    Die folgende Priorisierung zeigt, welches Nonfood-Sortiment sich am ehesten lohnt —
+    von der größten Lücke bis zum gesättigten Segment.
+  </div>`;
+
+  const cards = recs.map(r => `
+    <div class="rec-card ${r.cls}">
+      <div class="rec-head"><span>${r.group}</span><span class="rec-tag">${r.tag}</span></div>
+      <p>${r.status}${r.suggestion ? ' <strong>Vorschlag:</strong> ' + r.suggestion : ''}</p>
+    </div>
+  `).join('');
+
+  el.innerHTML = lead + cards;
+}
+
+const WEB_RESEARCH_BRANDS = [
+  'Action', 'Aldi', 'Lidl', 'Kaufland', 'Rewe', 'Edeka', 'Penny', 'Netto',
+  'TEDi', 'Woolworth', 'dm-drogerie markt', 'Rossmann', 'Müller Drogerie',
+  'OBI', 'Hornbach', 'Bauhaus', 'toom Baumarkt', 'MediaMarkt', 'Saturn', 'expert'
+];
+
+function renderWebResearch(center, addressLabel){
+  const el = document.getElementById('webLinks');
+  el.innerHTML = '';
+  WEB_RESEARCH_BRANDS.forEach(brand => {
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(brand)}/@${center.lat},${center.lon},13z`;
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(brand + ' in der Nähe von ' + addressLabel)}`;
+    const card = document.createElement('div');
+    card.className = 'web-link-card';
+    card.innerHTML = `
+      <span class="brand">${brand}</span>
+      <a href="${mapsUrl}" target="_blank" rel="noopener">Karte ↗</a>
+      <a href="${searchUrl}" target="_blank" rel="noopener">Suche ↗</a>
+    `;
+    el.appendChild(card);
+  });
+}
+
+
 // und 0,2 km — oft mehrere OSM-Punkte für denselben Laden/Eingang) zu einer
 // Gruppe zusammen. Gruppiert nach normalisiertem Namen + Kategorie.
 function groupByName(shops){
@@ -732,8 +940,9 @@ function renderAssortmentBreakdown(shops){
 
 function switchTab(tabName){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
-  document.getElementById('tab-markets').style.display = tabName === 'markets' ? '' : 'none';
-  document.getElementById('tab-analysis').style.display = tabName === 'analysis' ? '' : 'none';
+  ['markets','analysis','web','summary'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === tabName) ? '' : 'none';
+  });
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -787,6 +996,8 @@ async function runAnalysis(){
     renderOpportunities(catCounts, nonfoodShops);
     renderTable(nonfoodShops);
     renderAssortmentBreakdown(nonfoodShops);
+    renderWebResearch(center, center.label);
+    renderSummary(catCounts, nonfoodShops, radiusKm, center.label);
 
     document.getElementById('results').classList.add('show');
     switchTab('markets');
