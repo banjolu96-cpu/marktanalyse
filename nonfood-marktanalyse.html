@@ -174,6 +174,37 @@
   .assort-group li:last-child{border-bottom:none;}
   .assort-group li .dname{color:var(--ink);}
   .assort-group li .ddist{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7a7466;}
+  .dup-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:2px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    background:var(--paper);
+    border:1px solid var(--petrol-2);
+    color:var(--petrol-2);
+    padding:1px 6px;
+    border-radius:10px;
+    cursor:pointer;
+    margin-left:4px;
+    user-select:none;
+  }
+  .dup-badge:hover{background:var(--petrol-2);color:#fff;}
+  .dup-badge .caret{font-size:9px;}
+  tr.sub-row td{background:var(--paper);}
+  .sub-detail{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;
+    color:#7a7466;
+    padding:6px 10px !important;
+  }
+  li.sub-detail-li{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:#7a7466;
+    border-bottom:1px dashed var(--line);
+    padding:2px 0 6px 14px !important;
+  }
   .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:18px;}
   @media(max-width:860px){.grid2{grid-template-columns:1fr;}}
   #map{height:420px;border-radius:2px;}
@@ -585,25 +616,70 @@ function renderOpportunities(catCounts, nonfoodShops){
   el.innerHTML = html;
 }
 
+// Fasst mehrfach erkannte Standorte desselben Marktes (z.B. Rewe bei 0,1 km
+// und 0,2 km — oft mehrere OSM-Punkte für denselben Laden/Eingang) zu einer
+// Gruppe zusammen. Gruppiert nach normalisiertem Namen + Kategorie.
+function groupByName(shops){
+  const groups = {};
+  shops.forEach(s => {
+    const key = s.name.trim().toLowerCase() + '|' + s.group;
+    if (!groups[key]){
+      groups[key] = { name: s.name, group: s.group, shopType: s.shopType, isFoodStore: s.isFoodStore, instances: [] };
+    }
+    groups[key].instances.push(s);
+  });
+  return Object.values(groups).map(g => {
+    g.instances.sort((a,b) => a.distance - b.distance);
+    g.minDistance = g.instances[0].distance;
+    g.count = g.instances.length;
+    return g;
+  });
+}
+
+let tableRowIdCounter = 0;
+
 function renderTable(shops){
   const body = document.getElementById('shopTableBody');
   body.innerHTML = '';
   document.getElementById('shopCount').textContent = shops.length;
-  const sorted = [...shops].sort((a,b) => a.distance - b.distance);
-  if (!sorted.length){
+  const grouped = groupByName(shops).sort((a,b) => a.minDistance - b.minDistance);
+  if (!grouped.length){
     body.innerHTML = '<tr><td colspan="4" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
     return;
   }
-  sorted.forEach(s => {
+  grouped.forEach(g => {
+    const pillClass = g.isFoodStore ? 'pill food' : 'pill';
+    const rowId = 'grp-' + (tableRowIdCounter++);
     const tr = document.createElement('tr');
-    const pillClass = s.isFoodStore ? 'pill food' : 'pill';
+    const countBadge = g.count > 1
+      ? `<span class="dup-badge" data-target="${rowId}">×${g.count} <span class="caret">▾</span></span>`
+      : '';
     tr.innerHTML = `
-      <td class="dist">${s.distance.toFixed(1)} km</td>
-      <td>${s.name}</td>
-      <td>${s.shopType}</td>
-      <td><span class="${pillClass}">${s.group}</span></td>
+      <td class="dist">${g.minDistance.toFixed(1)} km</td>
+      <td>${g.name} ${countBadge}</td>
+      <td>${g.shopType}</td>
+      <td><span class="${pillClass}">${g.group}</span></td>
     `;
     body.appendChild(tr);
+
+    if (g.count > 1){
+      const sub = document.createElement('tr');
+      sub.className = 'sub-row';
+      sub.id = rowId;
+      sub.style.display = 'none';
+      const items = g.instances.map(inst => `${inst.distance.toFixed(1)} km`).join(' · ');
+      sub.innerHTML = `<td></td><td colspan="3" class="sub-detail">Standorte: ${items}</td>`;
+      body.appendChild(sub);
+    }
+  });
+
+  body.querySelectorAll('.dup-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+      const target = document.getElementById(badge.dataset.target);
+      const isOpen = target.style.display !== 'none';
+      target.style.display = isOpen ? 'none' : 'table-row';
+      badge.querySelector('.caret').textContent = isOpen ? '▾' : '▴';
+    });
   });
 }
 
@@ -621,17 +697,36 @@ function renderAssortmentBreakdown(shops){
   });
   const entries = Object.entries(byGroup).sort((a,b) => b[1].length - a[1].length);
   entries.forEach(([group, list]) => {
-    list.sort((a,b) => a.distance - b.distance);
+    const grouped = groupByName(list).sort((a,b) => a.minDistance - b.minDistance);
     const div = document.createElement('div');
     div.className = 'assort-group';
-    const items = list.map(s => `
-      <li><span class="dname">${s.name}</span><span class="ddist">${s.distance.toFixed(1)} km</span></li>
-    `).join('');
+    const items = grouped.map(g => {
+      const rowId = 'assort-' + (tableRowIdCounter++);
+      const badge = g.count > 1
+        ? `<span class="dup-badge" data-target="${rowId}">×${g.count} <span class="caret">▾</span></span>`
+        : '';
+      const detail = g.count > 1
+        ? `<li id="${rowId}" class="sub-detail-li" style="display:none;">↳ ${g.instances.map(i => i.distance.toFixed(1) + ' km').join(' · ')}</li>`
+        : '';
+      return `
+        <li><span class="dname">${g.name} ${badge}</span><span class="ddist">${g.minDistance.toFixed(1)} km</span></li>
+        ${detail}
+      `;
+    }).join('');
     div.innerHTML = `
-      <h4>${group} <span class="count">${list.length}</span></h4>
+      <h4>${group} <span class="count">${grouped.length} Markt${grouped.length === 1 ? '' : 'e'}${grouped.length !== list.length ? ' · ' + list.length + ' Standorte gesamt' : ''}</span></h4>
       <ul>${items}</ul>
     `;
     el.appendChild(div);
+  });
+
+  el.querySelectorAll('.dup-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+      const target = document.getElementById(badge.dataset.target);
+      const isOpen = target.style.display !== 'none';
+      target.style.display = isOpen ? 'none' : 'list-item';
+      badge.querySelector('.caret').textContent = isOpen ? '▾' : '▴';
+    });
   });
 }
 
