@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nonfood-Radar — Standort- &amp; Konkurrenzanalyse</title>
+<title>Nonfood-Radar Pro — Standort-, Konkurrenz- &amp; Sortimentsanalyse für REWE-Märkte</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -20,6 +21,7 @@
     --line:#d8d2c0;
     --ok:#2f7a4f;
     --warn:#c94b2c;
+    --rewe:#cc071e;
     --grid: repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(15,59,63,0.05) 27px, rgba(15,59,63,0.05) 28px);
   }
   *{box-sizing:border-box;}
@@ -58,7 +60,7 @@
     letter-spacing:0.5px;
   }
   main{
-    max-width:1180px;
+    max-width:1220px;
     margin:0 auto;
     padding:26px 20px 60px;
   }
@@ -68,6 +70,42 @@
     border-radius:2px;
     box-shadow:0 1px 0 var(--line);
   }
+
+  /* ---- Moduswahl ---- */
+  .mode-switch{
+    display:flex;
+    gap:0;
+    margin-bottom:16px;
+    border:1px solid var(--petrol);
+    border-radius:2px;
+    overflow:hidden;
+    width:fit-content;
+  }
+  .mode-btn{
+    background:var(--paper-2);
+    border:none;
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    font-size:13px;
+    padding:11px 20px;
+    cursor:pointer;
+    color:var(--petrol);
+    border-right:1px solid var(--petrol);
+  }
+  .mode-btn:last-child{border-right:none;}
+  .mode-btn.active{background:var(--petrol);color:var(--paper);}
+  .mode-btn .n{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    opacity:0.7;
+    display:block;
+    margin-top:2px;
+    text-transform:none;
+    letter-spacing:0;
+  }
+
   .search-row{
     display:flex;
     gap:10px;
@@ -83,7 +121,7 @@
     letter-spacing:0.8px;
     color:var(--petrol-2);
   }
-  .field input, .field select{
+  .field input, .field select, .field textarea{
     border:1px solid var(--line);
     background:var(--paper);
     padding:10px 11px;
@@ -92,7 +130,9 @@
     border-radius:2px;
     color:var(--ink);
   }
-  .field input:focus, .field select:focus{outline:2px solid var(--amber);outline-offset:1px;}
+  .field textarea{font-family:'JetBrains Mono',monospace;font-size:12.5px;resize:vertical;min-height:120px;line-height:1.6;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--amber);outline-offset:1px;}
+  .field .hint{font-size:11px;color:#7a7466;font-family:'JetBrains Mono',monospace;}
   button.primary{
     background:var(--amber);
     color:var(--ink);
@@ -106,9 +146,25 @@
     border-radius:2px;
     cursor:pointer;
     transition:background 0.15s;
+    white-space:nowrap;
   }
   button.primary:hover{background:var(--amber-2);}
   button.primary:disabled{background:#cbc3ab;cursor:wait;}
+  button.ghost{
+    background:transparent;
+    color:var(--petrol);
+    border:1px solid var(--petrol);
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    font-size:12.5px;
+    padding:10px 16px;
+    border-radius:2px;
+    cursor:pointer;
+  }
+  button.ghost:hover{background:var(--petrol);color:var(--paper);}
+  button.ghost:disabled{opacity:0.4;cursor:not-allowed;}
   .status{
     font-family:'JetBrains Mono',monospace;
     font-size:12px;
@@ -124,6 +180,7 @@
     gap:4px;
     margin:18px 0 14px;
     border-bottom:2px solid var(--petrol);
+    flex-wrap:wrap;
   }
   .tab-btn{
     background:transparent;
@@ -161,6 +218,7 @@
   }
   .legend .dot.petrol{background:var(--petrol-2);}
   .legend .dot.amber{background:var(--amber-2);}
+  .legend .dot.rewe{background:var(--rewe);}
   .web-intro{
     padding:2px 18px 16px;
     font-size:13px;
@@ -215,6 +273,7 @@
   }
   .rec-card.mid{border-left-color:var(--amber-2);}
   .rec-card.saturated{border-left-color:var(--line);opacity:0.75;}
+  .rec-card.rewe-has{border-left-color:var(--petrol-2);opacity:0.7;}
   .rec-card .rec-head{
     display:flex;
     justify-content:space-between;
@@ -299,7 +358,7 @@
   }
   .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:18px;}
   @media(max-width:860px){.grid2{grid-template-columns:1fr;}}
-  #map{height:420px;border-radius:2px;}
+  #map, #batchMap{height:420px;border-radius:2px;}
   .stat-strip{
     display:flex;
     padding:16px 18px;
@@ -309,6 +368,7 @@
   }
   .stat{display:flex;flex-direction:column;}
   .stat .n{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;color:var(--petrol);}
+  .stat .n.rewe{color:var(--rewe);}
   .stat .l{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;color:#7a7466;letter-spacing:0.5px;}
   .panel-title{
     font-family:'Oswald',sans-serif;
@@ -321,6 +381,8 @@
     display:flex;
     align-items:center;
     gap:8px;
+    flex-wrap:wrap;
+    justify-content:space-between;
   }
   .panel-title .idx{
     font-family:'JetBrains Mono',monospace;
@@ -330,6 +392,8 @@
     padding:2px 6px;
     border-radius:2px;
   }
+  .panel-title .titletext{display:flex;align-items:center;gap:8px;}
+  .panel-title .actions{display:flex;gap:8px;flex-wrap:wrap;}
   .cat-list{list-style:none;margin:0;padding:6px 18px 18px;}
   .cat-list li{
     display:flex;
@@ -360,12 +424,13 @@
     letter-spacing:0.3px;
   }
   .opportunity-badge.mid{background:var(--amber-2);}
-  table.shops{
+  .opportunity-badge.rewe{background:var(--rewe);}
+  table.shops, table.batch{
     width:100%;
     border-collapse:collapse;
     font-size:13px;
   }
-  table.shops th{
+  table.shops th, table.batch th{
     font-family:'JetBrains Mono',monospace;
     font-size:10.5px;
     text-transform:uppercase;
@@ -375,12 +440,12 @@
     border-bottom:2px solid var(--petrol);
     padding:8px 10px;
   }
-  table.shops td{
+  table.shops td, table.batch td{
     padding:9px 10px;
     border-bottom:1px solid var(--line);
     vertical-align:top;
   }
-  table.shops tr:hover td{background:#faf8f2;}
+  table.shops tr:hover td, table.batch tr:hover td{background:#faf8f2;}
   .pill{
     display:inline-block;
     font-family:'JetBrains Mono',monospace;
@@ -392,7 +457,9 @@
     margin:1px 3px 1px 0;
   }
   .pill.food{background:#fbe9df;border-color:#e8c3a8;color:var(--amber-2);}
+  .pill.own{background:#fbe0e3;border-color:#e8a8b0;color:var(--rewe);}
   .pill.assort{background:#eaf2f1;border-color:var(--petrol-2);color:var(--petrol-2);}
+  .pill.assort.gap{background:#fbe0e3;border-color:var(--rewe);color:var(--rewe);}
   .assort-pills{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;}
   .assort-filter{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 14px;}
   .assort-chip{
@@ -420,27 +487,52 @@
   .check-link:hover{color:var(--amber-2);border-bottom-color:var(--amber-2);}
 
   .settings-panel{
-    margin:0 0 22px;
+    margin:0 0 16px;
     border:1px solid var(--line);
-    border-radius:10px;
-    background:var(--card);
+    border-radius:2px;
+    background:var(--paper-2);
   }
   .settings-panel summary{
     cursor:pointer;
-    padding:12px 18px;
-    font-family:'JetBrains Mono',monospace;
-    font-size:12.5px;
-    color:var(--petrol-2);
+    padding:13px 18px;
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    font-size:13px;
+    color:var(--petrol);
     list-style:none;
   }
   .settings-panel summary::-webkit-details-marker{display:none;}
+  .settings-panel summary::before{content:'▸ ';color:var(--amber-2);}
+  .settings-panel[open] summary::before{content:'▾ ';}
   .settings-body{padding:0 18px 16px;display:flex;flex-direction:column;gap:10px;}
   .settings-note{
     font-size:11.5px;
     color:#7a7466;
     line-height:1.5;
-    max-width:640px;
+    max-width:760px;
   }
+  .rewe-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+    gap:8px;
+    padding:4px 0;
+  }
+  .rewe-check{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:2px;
+    padding:8px 10px;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .rewe-check input{accent-color:var(--rewe);width:15px;height:15px;cursor:pointer;}
+  .rewe-check.checked{border-color:var(--rewe);background:#fbe0e3;}
+  .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
 
   .live-status{display:inline-block;margin-top:5px;}
   .live-check-btn{
@@ -487,13 +579,60 @@
     padding:20px 18px;
     color:#7a7466;
   }
+
+  /* ---- Gap-Prioritäten ---- */
+  .gap-list{list-style:none;margin:0;padding:6px 18px 18px;}
+  .gap-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:2px;
+    margin-bottom:7px;
+    background:var(--paper);
+  }
+  .gap-item.hoch{border-left:4px solid var(--rewe);}
+  .gap-item.mittel{border-left:4px solid var(--amber-2);}
+  .gap-item.niche{border-left:4px solid var(--line);opacity:0.75;}
+  .gap-item .gname{flex:1;font-size:13.5px;font-weight:500;}
+  .gap-item .gmeta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7a7466;}
+  .gap-tier{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    padding:2px 7px;
+    border-radius:2px;
+    color:#fff;
+  }
+  .gap-tier.hoch{background:var(--rewe);}
+  .gap-tier.mittel{background:var(--amber-2);}
+  .gap-tier.niche{background:#928c78;}
+  .gap-tier.covered{background:var(--petrol-2);}
+
+  /* ---- Batch ---- */
+  .progress-wrap{padding:0 18px 16px;}
+  .progress-track{height:8px;background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden;}
+  .progress-bar{height:100%;background:var(--amber);width:0%;transition:width 0.2s;}
+  .progress-text{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7a7466;margin-top:6px;}
+  .batch-score{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    font-size:16px;
+  }
+  .batch-score.high{color:var(--rewe);}
+  .batch-score.mid{color:var(--amber-2);}
+  .batch-score.low{color:var(--petrol-2);}
+  tr.batch-sub td{background:var(--paper);padding:12px !important;}
+
   footer{
-    max-width:1180px;
+    max-width:1220px;
     margin:0 auto;
     padding:0 20px 40px;
     font-family:'JetBrains Mono',monospace;
     font-size:11px;
     color:#918a77;
+    line-height:1.6;
   }
   .signature{
     display:inline-block;
@@ -504,186 +643,305 @@
     font-family:'JetBrains Mono',monospace;
     font-size:11px;
   }
+
+  @media print{
+    header .tag, .mode-switch, .search-row, .status, .settings-panel, nav.tabs,
+    .assort-filter, .panel-title .actions, .live-status, .check-link, footer .signature { display:none !important; }
+    body{background:#fff;}
+    .panel{box-shadow:none;border-color:#ccc;}
+    section.results{display:block !important;}
+    .tab-panel{display:block !important;margin-bottom:26px;}
+    #map, #batchMap{height:280px;}
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Nonfood<span>-Radar</span></h1>
-  <div class="tag">Standort- &amp; Sortiments-Analyse</div>
+  <h1>Nonfood<span>-Radar</span> Pro</h1>
+  <div class="tag">Standort-, Konkurrenz- &amp; Sortimentsanalyse für REWE-Nonfood-Disposition</div>
 </header>
 
 <main>
-  <div class="panel">
-    <div class="search-row">
-      <div class="field" style="flex:2;min-width:280px;">
-        <label for="address">Adresse / Standort</label>
-        <input id="address" type="text" placeholder="z.B. Musterstraße 12, 12345 Musterstadt" />
-      </div>
-      <div class="field" style="max-width:130px;">
-        <label for="radius">Radius (km)</label>
-        <input id="radius" type="number" value="10" min="1" max="25" />
-      </div>
-      <button class="primary" id="searchBtn">Analysieren</button>
-    </div>
-    <div class="status" id="status"></div>
 
-    <details class="settings-panel">
-      <summary>⚙ Optional: Zusätzlicher Live-Status via eigenem Cloudflare Worker (kostenpflichtig bei Google)</summary>
-      <div class="settings-body">
-        <div class="settings-note" style="margin-bottom:4px;">
-          Standardmäßig zeigt die App zu jedem Markt kostenlos an, wie aktuell der zugrunde liegende OpenStreetMap-Eintrag ist (Ampel-Badge). Das reicht in den meisten Fällen als Hinweis. Wer zusätzlich einen "harten" Live-Status direkt von Google abfragen möchte, kann optional einen eigenen Cloudflare Worker mit Google-API-Key hinterlegen (siehe mitgelieferte cloudflare-worker.js) — das verursacht dann geringe Kosten bei Google.
-        </div>
-        <div class="search-row" style="padding:0;">
-          <div class="field">
-            <label for="workerUrl">Worker-URL</label>
-            <input id="workerUrl" type="text" placeholder="https://dein-worker.deinname.workers.dev" />
-          </div>
-          <div class="field">
-            <label for="workerToken">Zugriffs-Token</label>
-            <input id="workerToken" type="text" placeholder="dein-geheimes-token" />
-          </div>
-          <button class="primary" id="saveSettingsBtn" type="button">Speichern</button>
-        </div>
-        <div class="settings-note">
-          Wird nur lokal in diesem Browser gespeichert (localStorage) — nie an Anthropic/Claude oder sonst wen übertragen.
-          Ohne Eintrag bleibt nur der "Live-Status via Worker"-Button inaktiv, alles andere funktioniert normal.
-        </div>
-      </div>
-    </details>
+  <div class="mode-switch" id="modeSwitch">
+    <button class="mode-btn active" data-mode="single">Einzelstandort<span class="n">Tiefenanalyse</span></button>
+    <button class="mode-btn" data-mode="batch">Mehrere Standorte<span class="n">Batch-Vergleich</span></button>
   </div>
 
-  <section class="results" id="results">
+  <details class="settings-panel" id="reweSettingsPanel" open>
+    <summary>REWE-Sortiment: Was wird an euren Standorten aktuell schon geführt?</summary>
+    <div class="settings-body">
+      <div class="settings-note">
+        Diese Auswahl ist die Grundlage für den Sortimentsabgleich ("REWE-Abgleich"-Tab bzw. Netzweite Empfehlung im Batch-Modus):
+        Warengruppen, die hier <strong>nicht</strong> angehakt sind, werden mit dem gefundenen Wettbewerbsangebot verglichen und als
+        Chance markiert. Die Voreinstellungen unten sind nur Beispielvorlagen — bitte an das tatsächliche Sortiment eurer Standorte anpassen.
+        Die Auswahl wird lokal in diesem Browser gespeichert.
+      </div>
+      <div class="rewe-grid" id="reweGrid"></div>
+      <div class="preset-row">
+        <button class="ghost" type="button" id="presetCompact">Vorlage „Kompakt“ setzen</button>
+        <button class="ghost" type="button" id="presetStandard">Vorlage „Standard“ setzen</button>
+        <button class="ghost" type="button" id="presetClear">Alle zurücksetzen</button>
+      </div>
+    </div>
+  </details>
 
-    <div class="panel stat-strip" id="statStrip"></div>
+  <!-- ============ EINZELSTANDORT ============ -->
+  <div id="panel-single">
+    <div class="panel">
+      <div class="search-row">
+        <div class="field" style="flex:2;min-width:280px;">
+          <label for="address">Adresse / Standort</label>
+          <input id="address" type="text" placeholder="z.B. Musterstraße 12, 12345 Musterstadt" />
+        </div>
+        <div class="field" style="max-width:130px;">
+          <label for="radius">Radius (km)</label>
+          <input id="radius" type="number" value="10" min="1" max="25" />
+        </div>
+        <button class="primary" id="searchBtn">Analysieren</button>
+      </div>
+      <div class="status" id="status"></div>
 
-    <nav class="tabs" id="tabs">
-      <button class="tab-btn active" data-tab="markets">Märkte im Umkreis</button>
-      <button class="tab-btn" data-tab="analysis">Analyse</button>
-      <button class="tab-btn" data-tab="web">Web-Recherche</button>
-      <button class="tab-btn" data-tab="summary">Empfehlung</button>
-    </nav>
-
-    <div class="legend">
-      <span><i class="dot petrol"></i> Nonfood-Fachmarkt / Filialist</span>
-      <span><i class="dot amber"></i> Lebensmittelhändler mit Nonfood-Aktionsware</span>
+      <details class="settings-panel">
+        <summary>⚙ Optional: Zusätzlicher Live-Status via eigenem Cloudflare Worker (kostenpflichtig bei Google)</summary>
+        <div class="settings-body">
+          <div class="settings-note" style="margin-bottom:4px;">
+            Standardmäßig zeigt die App zu jedem Markt kostenlos an, wie aktuell der zugrunde liegende OpenStreetMap-Eintrag ist (Ampel-Badge). Das reicht in den meisten Fällen als Hinweis. Wer zusätzlich einen "harten" Live-Status direkt von Google abfragen möchte, kann optional einen eigenen Cloudflare Worker mit Google-API-Key hinterlegen (siehe mitgelieferte cloudflare-worker.js) — das verursacht dann geringe Kosten bei Google.
+          </div>
+          <div class="search-row" style="padding:0;">
+            <div class="field">
+              <label for="workerUrl">Worker-URL</label>
+              <input id="workerUrl" type="text" placeholder="https://dein-worker.deinname.workers.dev" />
+            </div>
+            <div class="field">
+              <label for="workerToken">Zugriffs-Token</label>
+              <input id="workerToken" type="text" placeholder="dein-geheimes-token" />
+            </div>
+            <button class="primary" id="saveSettingsBtn" type="button">Speichern</button>
+          </div>
+          <div class="settings-note">
+            Wird nur lokal in diesem Browser gespeichert (localStorage) — nie an Anthropic/Claude oder sonst wen übertragen.
+            Ohne Eintrag bleibt nur der "Live-Status via Worker"-Button inaktiv, alles andere funktioniert normal.
+          </div>
+        </div>
+      </details>
     </div>
 
-    <div class="tab-panel" id="tab-markets">
-      <div class="panel" style="margin-bottom:18px;">
-        <div class="panel-title"><span class="idx">01</span> Karte</div>
-        <div id="map" style="margin:12px 18px 18px;border:1px solid var(--line);"></div>
+    <section class="results" id="results">
+
+      <div class="panel stat-strip" id="statStrip"></div>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab-btn active" data-tab="markets">Märkte im Umkreis</button>
+        <button class="tab-btn" data-tab="analysis">Analyse</button>
+        <button class="tab-btn" data-tab="rewe">REWE-Abgleich</button>
+        <button class="tab-btn" data-tab="web">Web-Recherche</button>
+        <button class="tab-btn" data-tab="summary">Empfehlung</button>
+      </nav>
+
+      <div class="legend">
+        <span><i class="dot petrol"></i> Nonfood-Fachmarkt / Filialist</span>
+        <span><i class="dot amber"></i> Lebensmittelhändler mit Nonfood-Aktionsware</span>
+        <span><i class="dot rewe"></i> Eigene REWE-Filiale (kein Wettbewerber)</span>
       </div>
 
-      <div class="panel">
-        <div class="panel-title"><span class="idx">02</span> Gefundene Märkte (<span id="shopCount">0</span>) — sortiert nach Entfernung
-          <button class="secondary-btn" id="checkAllBtn" type="button">Alle live prüfen</button>
+      <div class="tab-panel" id="tab-markets">
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-title"><span class="titletext"><span class="idx">01</span> Karte</span></div>
+          <div id="map" style="margin:12px 18px 18px;border:1px solid var(--line);"></div>
         </div>
-        <div class="assort-filter" id="assortFilter"></div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span class="titletext"><span class="idx">02</span> Gefundene Märkte (<span id="shopCount">0</span>) — sortiert nach Entfernung</span>
+            <span class="actions">
+              <button class="secondary-btn" id="checkAllBtn" type="button">Alle live prüfen</button>
+              <button class="secondary-btn" id="exportExcelSingleBtn" type="button">Excel-Export</button>
+              <button class="secondary-btn" id="exportPdfSingleBtn" type="button">PDF-Bericht (Drucken)</button>
+            </span>
+          </div>
+          <div class="assort-filter" id="assortFilter"></div>
+          <div style="overflow-x:auto;">
+            <table class="shops" id="shopTable">
+              <thead>
+                <tr><th>Entfernung</th><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Geführte Sortimente</th><th>Noch vorhanden?</th></tr>
+              </thead>
+              <tbody id="shopTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px;" id="ownStoresPanel">
+          <div class="panel-title"><span class="titletext"><span class="idx">03</span> Eigene REWE-Filialen im Umkreis (<span id="ownStoreCount">0</span>)</span></div>
+          <div id="ownStoresList" style="padding:6px 18px 18px;"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-analysis" style="display:none;">
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-title"><span class="titletext"><span class="idx">01</span> Nonfood-Betriebstypen in der Umgebung</span></div>
+          <ul class="cat-list" id="catList"></ul>
+        </div>
+
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-title"><span class="titletext"><span class="idx">02</span> Chancen-Einschätzung — was sich lohnen könnte</span></div>
+          <div id="opportunityText" style="padding:6px 18px 18px;font-size:13.5px;line-height:1.6;"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><span class="titletext"><span class="idx">03</span> Sortiment der Wettbewerber — wer führt was</span></div>
+          <div id="assortmentBreakdown" style="padding:6px 18px 18px;"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-rewe" style="display:none;">
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-title"><span class="titletext"><span class="idx">01</span> Direkte Ergänzungs-Chancen — Wettbewerber führt, REWE (noch) nicht</span></div>
+          <div id="reweGapPriority"></div>
+        </div>
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-title"><span class="titletext"><span class="idx">02</span> Unklare Nachfrage — niemand im Umkreis führt es</span></div>
+          <div id="reweGapNiche"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><span class="titletext"><span class="idx">03</span> Bereits im REWE-Sortiment abgedeckt</span></div>
+          <div id="reweGapCovered"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-web" style="display:none;">
+        <div class="panel">
+          <div class="panel-title"><span class="titletext"><span class="idx">01</span> Web-Recherche — offene Marktabfrage</span></div>
+          <div class="web-intro">
+            Die Analyse links basiert auf OpenStreetMap-Daten — nicht jeder Standort ist dort vollständig erfasst.
+            Zur Ergänzung: ein Klick öffnet Google Maps bzw. die Google-Suche direkt zentriert auf deinen Standort,
+            damit du gezielt nach den großen Nonfood-Playern in der Umgebung suchen kannst.
+          </div>
+          <div id="webLinks" class="web-links"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-summary" style="display:none;">
+        <div class="panel">
+          <div class="panel-title"><span class="titletext"><span class="idx">01</span> Gebündelte Sortiments-Empfehlung</span></div>
+          <div id="summaryText" style="padding:6px 18px 22px;"></div>
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+  <!-- ============ BATCH ============ -->
+  <div id="panel-batch" style="display:none;">
+    <div class="panel">
+      <div class="search-row" style="align-items:stretch;">
+        <div class="field" style="flex:2;min-width:320px;">
+          <label for="batchInput">Standortliste (eine Filiale pro Zeile)</label>
+          <textarea id="batchInput" placeholder="Filiale Musterstadt Zentrum; Musterstraße 12, 12345 Musterstadt
+Filiale Musterstadt Nord; Bahnhofstraße 5, 12345 Musterstadt
+Filiale Nachbarort; Hauptstraße 1, 12399 Nachbarort"></textarea>
+          <div class="hint">Format: <em>Filialname; Adresse</em> — der Filialname ist optional, ohne „;“ wird die ganze Zeile als Adresse verwendet.</div>
+        </div>
+        <div class="field" style="max-width:130px;">
+          <label for="batchRadius">Radius (km)</label>
+          <input id="batchRadius" type="number" value="10" min="1" max="25" />
+        </div>
+      </div>
+      <div class="search-row" style="padding-top:0;">
+        <button class="primary" id="batchStartBtn">Batch-Analyse starten</button>
+        <button class="ghost" id="batchCancelBtn" type="button" style="display:none;">Abbrechen</button>
+        <span class="hint" style="align-self:center;">Läuft standortweise nacheinander (Rücksicht auf freie OSM-Server) — bei &gt;15 Standorten realistisch mit mehreren Minuten Laufzeit rechnen.</span>
+      </div>
+      <div class="status" id="batchStatus"></div>
+      <div class="progress-wrap" id="batchProgressWrap" style="display:none;">
+        <div class="progress-track"><div class="progress-bar" id="batchProgressBar"></div></div>
+        <div class="progress-text" id="batchProgressText"></div>
+      </div>
+    </div>
+
+    <section class="results" id="batchResults">
+
+      <div class="panel stat-strip" id="batchStatStrip"></div>
+
+      <div class="panel" style="margin:18px 0;">
+        <div class="panel-title"><span class="titletext"><span class="idx">01</span> Karte — alle analysierten Standorte</span></div>
+        <div id="batchMap" style="margin:12px 18px 18px;border:1px solid var(--line);"></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:18px;">
+        <div class="panel-title">
+          <span class="titletext"><span class="idx">02</span> Standort-Übersicht</span>
+          <span class="actions">
+            <button class="secondary-btn" id="exportExcelBatchBtn" type="button">Excel-Export (alle Standorte)</button>
+            <button class="secondary-btn" id="exportPdfBatchBtn" type="button">PDF-Bericht (Drucken)</button>
+          </span>
+        </div>
         <div style="overflow-x:auto;">
-          <table class="shops" id="shopTable">
+          <table class="batch" id="batchTable">
             <thead>
-              <tr><th>Entfernung</th><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Geführte Sortimente</th><th>Noch vorhanden?</th></tr>
+              <tr><th>Filiale</th><th>Adresse</th><th>Wettbewerber</th><th>Eigene REWE-Filialen</th><th>Top-Prioritäten</th><th>Prioritäts-Score</th><th></th></tr>
             </thead>
-            <tbody id="shopTableBody"></tbody>
+            <tbody id="batchTableBody"></tbody>
           </table>
         </div>
       </div>
-    </div>
-
-    <div class="tab-panel" id="tab-analysis" style="display:none;">
-      <div class="panel" style="margin-bottom:18px;">
-        <div class="panel-title"><span class="idx">01</span> Nonfood-Kategorien in der Umgebung</div>
-        <ul class="cat-list" id="catList"></ul>
-      </div>
-
-      <div class="panel" style="margin-bottom:18px;">
-        <div class="panel-title"><span class="idx">02</span> Chancen-Einschätzung — was sich lohnen könnte</div>
-        <div id="opportunityText" style="padding:6px 18px 18px;font-size:13.5px;line-height:1.6;"></div>
-      </div>
 
       <div class="panel">
-        <div class="panel-title"><span class="idx">03</span> Sortiment der Wettbewerber — wer führt was</div>
-        <div id="assortmentBreakdown" style="padding:6px 18px 18px;"></div>
-      </div>
-    </div>
-
-    <div class="tab-panel" id="tab-web" style="display:none;">
-      <div class="panel">
-        <div class="panel-title"><span class="idx">01</span> Web-Recherche — offene Marktabfrage</div>
-        <div class="web-intro">
-          Die Analyse links basiert auf OpenStreetMap-Daten — nicht jeder Standort ist dort vollständig erfasst.
-          Zur Ergänzung: ein Klick öffnet Google Maps bzw. die Google-Suche direkt zentriert auf deinen Standort,
-          damit du gezielt nach den großen Nonfood-Playern in der Umgebung suchen kannst.
+        <div class="panel-title"><span class="titletext"><span class="idx">03</span> Netzweite Sortiments-Empfehlung</span></div>
+        <div class="settings-note" style="padding:0 18px 10px;">
+          Über alle eingelesenen Standorte hinweg: welche Warengruppe lohnt sich als einheitliche Einführung fürs ganze Gebiet,
+          weil sie an vielen Standorten von Wettbewerbern angeboten, bei REWE aber (laut obiger Sortimentsauswahl) noch nicht geführt wird.
         </div>
-        <div id="webLinks" class="web-links"></div>
+        <div id="networkRecommendation" style="padding:0 18px 18px;"></div>
       </div>
-    </div>
 
-    <div class="tab-panel" id="tab-summary" style="display:none;">
-      <div class="panel">
-        <div class="panel-title"><span class="idx">01</span> Gebündelte Sortiments-Empfehlung</div>
-        <div id="summaryText" style="padding:6px 18px 22px;"></div>
-      </div>
-    </div>
+    </section>
+  </div>
 
-  </section>
 </main>
 
 <footer>
-  Datenquelle Standorte: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig.
-  Kategorisierung erfolgt heuristisch anhand von OSM-Tags und kann unvollständig sein.
-  Sortimentsangaben je Kette basieren auf recherchierten Angaben der jeweiligen Unternehmens-/Markenseiten und sind als typisches Sortiment, nicht als Live-Bestand einer einzelnen Filiale zu verstehen.
+  Datenquelle Standorte: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig. Bitte sparsam mit dem Radius/Batch-Umfang umgehen, da es sich um kostenlose, öffentliche Server handelt.
+  Kategorisierung erfolgt heuristisch anhand von OSM-Tags und Markennamen-Abgleich und kann unvollständig sein.
+  Sortimentsangaben je Kette sind typische, öffentlich bekannte Kernsortimente der jeweiligen Ketten und als Orientierung, nicht als Live-Bestand einer einzelnen Filiale zu verstehen.
+  Die REWE-Sortimentsauswahl oben wird manuell gepflegt und lokal gespeichert — sie ist keine offizielle REWE-Datenquelle, sondern eure eigene Arbeitsgrundlage.
   Der "Noch vorhanden?"-Bereich zeigt kostenlos an, wie aktuell der jeweilige OpenStreetMap-Eintrag zuletzt bearbeitet wurde (Ampel-Badge) — ein starker Hinweis, aber keine hundertprozentige Garantie. Zusätzlich gibt es Direkt-Links zu Google Maps/Suche zur manuellen Prüfung.
   Optional (nicht kostenlos) lässt sich ein eigener Cloudflare Worker mit Google-API-Key hinterlegen (siehe cloudflare-worker.js) für einen zusätzlichen, direkten Live-Status von Google.
   <div class="signature">Sortiment ist, was der Nachbar nicht hat.</div>
 </footer>
 
 <script>
-// ---------- Kategorien-Mapping (OSM shop=* -> Nonfood-Gruppe) ----------
-// Nur große Filialisten / flächendeckende Nonfood-Konkurrenten —
-// bewusst KEINE Kioske, Boutiquen, Einzelläden, Autohäuser, Optiker, Juweliere etc.
+// =========================================================================
+// Kategorien & Marken-Datenbank
+// =========================================================================
+
+// Generischer Fallback je OSM shop=* Tag, falls kein Markenname erkannt wird.
 const CATEGORY_MAP = {
   chemist: "Drogeriemarkt",
   doityourself: "Baumarkt",
   hardware: "Baumarkt",
   electronics: "Elektromarkt",
   department_store: "Kaufhaus",
-  variety_store: "Sonderposten / Nonfood-Discounter",
+  variety_store: "Nonfood-Sonderposten",
   general: "Kaufhaus",
 };
 
-// Food-orientierte Betriebstypen, die trotzdem als Nonfood-Konkurrenz gelten
-// (Aktionsware / Randsortiment) — die eigentlichen Rewe/Edeka/Aldi/Lidl-Vergleichsgruppe.
-// "convenience" (Kioske, kleine Nahversorger) bewusst ausgeschlossen.
 const FOOD_WITH_NONFOOD = {
   supermarket: "Supermarkt (Nonfood-Aktionsware)",
   discount: "Discounter (Nonfood-Aktionsware)",
 };
 
-// Namens-Whitelist als Sicherheitsnetz: erfasst bekannte große Ketten auch dann,
-// wenn OSM sie untypisch/generisch getaggt hat.
-const BIG_BRAND_PATTERNS = [
-  /aldi/i, /lidl/i, /kaufland/i, /rewe/i, /edeka/i, /penny/i, /netto/i, /real\b/i,
-  /action\b/i, /tedi/i, /nanu[- ]?nana/i, /mäc[- ]geiz/i, /woolworth/i, /kodi\b/i,
-  /dm[- ]?drogerie/i, /rossmann/i, /müller\b/i,
-  /obi\b/i, /hornbach/i, /bauhaus/i, /toom\b/i, /hagebau/i,
-  /media ?markt/i, /saturn/i, /expert\b/i, /euronics/i
-];
-
-// Namensmuster, die auf Kiosk-/Mikro-Formate hindeuten — werden IMMER
-// ausgeschlossen, auch wenn der Name zufällig zu einer großen Marke passt
-// (z.B. "REWE To Go", "Netto Express" am Bahnhof sind keine echten
-// Nonfood-Konkurrenten, sondern Kioskgröße).
+// Kleinformate/Kioske — werden immer ausgeschlossen, auch bei Markentreffer.
 const NAME_EXCLUDE_PATTERNS = [
   /kiosk/i, /späti\b/i, /spätkauf/i, /trinkhalle/i, /büdchen/i, /\bbude\b/i,
   /würstchenbude/i, /imbiss/i, /to.?go/i, /\bexpress\b/i, /trafik/i,
   /presse\b/i, /zeitschriften/i, /\btabak\b/i, /bahnhofsshop/i, /tankstelle/i,
-  /shop\s*&\s*go/i
+  /shop\s*&\s*go/i, /abholstation/i, /paketshop/i
 ];
 
-// Weitere Klein-/Fachformate, die keine relevante Nonfood-Sortimentsbreite
-// bieten und daher raus sollen.
+// Kleinformate ohne relevante Sortimentsbreite (generische Läden dieses Typs raus,
+// bekannte Groß-Filialisten desselben Tags werden über BRAND_DB trotzdem erfasst).
 const EXCLUDE_SHOP_TYPES = new Set([
   'kiosk','boutique','car','car_parts','car_repair','motorcycle',
   'clothes','shoes','jewelry','watches','optician','florist','gift',
@@ -700,29 +958,11 @@ const EXCLUDE_SHOP_TYPES = new Set([
   'money_lender','pawnbroker'
 ]);
 
-function categorize(tags){
-  const shop = tags.shop;
-  const name = (tags.name || tags.brand || '');
+// Eigene Marke — REWE-Filialen werden separat als "eigener Standort" erfasst,
+// nicht als Wettbewerber gezählt.
+const OWN_BRAND_PATTERN = /\brewe\b/i;
 
-  if (NAME_EXCLUDE_PATTERNS.some(p => p.test(name))) return null;
-  if (EXCLUDE_SHOP_TYPES.has(shop)) return null;
-
-  if (CATEGORY_MAP[shop]) return { group: CATEGORY_MAP[shop], isFoodStore:false };
-  if (FOOD_WITH_NONFOOD[shop]) return { group: FOOD_WITH_NONFOOD[shop], isFoodStore:true };
-
-  // Fallback: bekannter Großfilialist, aber untypisch getaggt
-  if (BIG_BRAND_PATTERNS.some(p => p.test(name))) {
-    const isFood = /aldi|lidl|kaufland|rewe|edeka|penny|netto|real\b/i.test(name);
-    return { group: isFood ? "Supermarkt (Nonfood-Aktionsware)" : "Sonderposten / Nonfood-Discounter", isFoodStore: isFood };
-  }
-  return null;
-}
-
-// ---------- Sortiments-Zuordnung (welche Warengruppen führt der Markt) ----------
-// Datenbasis: Recherche auf den offiziellen Webseiten/Unternehmensseiten der jeweiligen
-// Ketten (Stand: Recherche vom Sommer 2026). OSM selbst liefert keine Detail-Tags zu
-// einzelnen Warengruppen im Laden — für bekannte Ketten wird daher das recherchierte
-// reale Sortiment hinterlegt, für unbekannte/generische Läden ein Fallback je Nonfood-Gruppe.
+// Sortiments-Labels (Warengruppen-Ebene, unabhängig vom Betriebstyp).
 const ASSORTMENT_LABELS = {
   schreibwaren: "Schreibwaren & Büro",
   haushaltswaren: "Haushaltswaren",
@@ -732,50 +972,313 @@ const ASSORTMENT_LABELS = {
   party: "Party & Saison",
   drogerie: "Drogerie & Kosmetik",
   garten: "Garten & Outdoor",
-  textilien: "Textilien & Mode",
+  textilien: "Textilien & Heimtextil",
   bau: "Bau & Werkzeug",
   tierbedarf: "Tierbedarf",
   buecher: "Bücher & Medien",
   baby: "Baby & Kind",
 };
 
-// Recherchequellen (Auszug): action.com, tedi.com, de.wikipedia.org/wiki/TEDi_(retailer),
-// woolworth.de + de.wikipedia.org/wiki/Woolworth_Deutschland, mueller.de, obi.de,
-// rossmann.de, unternehmen.rossmann.de.
-const BRAND_ASSORTMENTS = [
-  { pattern: /action\b/i, list: ["deko","bau","spielwaren","schreibwaren","elektro","haushaltswaren","garten","drogerie","tierbedarf","textilien","party"] },
-  { pattern: /tedi/i, list: ["party","deko","bau","schreibwaren","haushaltswaren","drogerie","textilien","garten","tierbedarf","spielwaren","elektro"] },
-  { pattern: /nanu[- ]?nana/i, list: ["deko","schreibwaren","haushaltswaren","party"] },
-  { pattern: /mäc[- ]geiz/i, list: ["haushaltswaren","deko","drogerie","schreibwaren","party"] },
-  { pattern: /woolworth/i, list: ["textilien","haushaltswaren","deko","drogerie","schreibwaren","spielwaren","elektro","tierbedarf","party"] },
-  { pattern: /kodi\b/i, list: ["haushaltswaren","deko","spielwaren","schreibwaren","garten","party"] },
-  { pattern: /dm[- ]?drogerie|rossmann/i, list: ["drogerie","baby","tierbedarf","haushaltswaren","schreibwaren","deko","buecher"] },
-  { pattern: /müller\b/i, list: ["drogerie","spielwaren","elektro","buecher","haushaltswaren","schreibwaren","textilien","deko","baby"] },
-  { pattern: /obi\b|hornbach|bauhaus|toom\b|hagebau/i, list: ["bau","garten","elektro","haushaltswaren"] },
-  { pattern: /media ?markt|saturn|expert\b|euronics/i, list: ["elektro"] },
-  { pattern: /aldi|lidl|kaufland|rewe|edeka|penny|netto|real\b/i, list: ["haushaltswaren","garten","elektro","spielwaren","deko"] },
+// Marken-Datenbank: verbindet Namenserkennung, Betriebstyp-Gruppe und
+// typisches Kernsortiment in einem Eintrag. Nur flächendeckende, große
+// Filialisten — bewusst keine Einzelläden/Boutiquen. Ein Markentreffer hier
+// überstimmt EXCLUDE_SHOP_TYPES (z.B. Fressnapf ist oft als shop=pet getaggt,
+// wird aber als Fachmarkt-Filialist trotzdem erfasst).
+const BRAND_DB = [
+  { pattern: /action\b/i, group: "Nonfood-Sonderposten", isFoodStore:false,
+    assortments: ["deko","bau","spielwaren","schreibwaren","elektro","haushaltswaren","garten","drogerie","tierbedarf","textilien","party"] },
+  { pattern: /tedi\b/i, group: "Nonfood-Sonderposten", isFoodStore:false,
+    assortments: ["party","deko","bau","schreibwaren","haushaltswaren","drogerie","textilien","garten","tierbedarf","spielwaren","elektro"] },
+  { pattern: /mäc[- ]?geiz/i, group: "Nonfood-Sonderposten", isFoodStore:false,
+    assortments: ["haushaltswaren","deko","drogerie","schreibwaren","party"] },
+  { pattern: /kodi\b/i, group: "Nonfood-Sonderposten", isFoodStore:false,
+    assortments: ["haushaltswaren","deko","spielwaren","schreibwaren","garten","party"] },
+  { pattern: /nanu[- ]?nana/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false,
+    assortments: ["deko","schreibwaren","haushaltswaren","party"] },
+  { pattern: /woolworth/i, group: "Kaufhaus", isFoodStore:false,
+    assortments: ["textilien","haushaltswaren","deko","drogerie","schreibwaren","spielwaren","elektro","tierbedarf","party"] },
+  { pattern: /dm[- ]?drogerie|rossmann|budni/i, group: "Drogeriemarkt", isFoodStore:false,
+    assortments: ["drogerie","baby","tierbedarf","haushaltswaren","schreibwaren","deko","buecher"] },
+  { pattern: /müller\b/i, group: "Drogeriemarkt", isFoodStore:false,
+    assortments: ["drogerie","spielwaren","elektro","buecher","haushaltswaren","schreibwaren","textilien","deko","baby"] },
+  { pattern: /obi\b|hornbach|bauhaus|toom\b|hagebau|globus[- ]?baumarkt|bauking/i, group: "Baumarkt", isFoodStore:false,
+    assortments: ["bau","garten","elektro","haushaltswaren"] },
+  { pattern: /media ?markt|saturn|expert\b|euronics/i, group: "Elektromarkt", isFoodStore:false,
+    assortments: ["elektro"] },
+  { pattern: /fressnapf|futterhaus|das futterhaus/i, group: "Tierbedarf-Fachmarkt", isFoodStore:false,
+    assortments: ["tierbedarf"] },
+  { pattern: /\bdepot\b|butlers|flying tiger/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false,
+    assortments: ["deko","haushaltswaren","party","schreibwaren"] },
+  { pattern: /thalia\b|weltbild/i, group: "Bücher- & Medien-Fachmarkt", isFoodStore:false,
+    assortments: ["buecher","schreibwaren","spielwaren"] },
+  { pattern: /jysk\b/i, group: "Wohn- & Textilien-Fachmarkt", isFoodStore:false,
+    assortments: ["textilien","haushaltswaren","deko"] },
+  { pattern: /\bnkd\b|\bkik\b|ernsting|takko/i, group: "Textil-Discounter", isFoodStore:false,
+    assortments: ["textilien","baby","haushaltswaren"] },
+  { pattern: /aldi|lidl|kaufland|edeka|penny|netto|real\b/i, group: "Supermarkt (Nonfood-Aktionsware)", isFoodStore:true,
+    assortments: ["haushaltswaren","garten","elektro","spielwaren","deko"] },
 ];
 
-// Fallback je Nonfood-Gruppe, falls kein konkreter Markenname erkannt wurde.
+// Fallback je generischer Nonfood-Gruppe, falls kein konkreter Markenname erkannt wurde.
 const GROUP_ASSORTMENT_FALLBACK = {
   "Drogeriemarkt": ["drogerie","schreibwaren","baby"],
   "Baumarkt": ["bau","garten","elektro"],
   "Elektromarkt": ["elektro"],
   "Kaufhaus": ["textilien","haushaltswaren","deko","schreibwaren"],
-  "Sonderposten / Nonfood-Discounter": ["haushaltswaren","deko","spielwaren","schreibwaren","party"],
+  "Nonfood-Sonderposten": ["haushaltswaren","deko","spielwaren","schreibwaren","party"],
   "Supermarkt (Nonfood-Aktionsware)": ["haushaltswaren","garten","spielwaren"],
   "Discounter (Nonfood-Aktionsware)": ["haushaltswaren","garten","elektro"],
 };
 
-function getAssortments(name, group){
-  const brand = BRAND_ASSORTMENTS.find(b => b.pattern.test(name));
-  if (brand) return brand.list;
-  return GROUP_ASSORTMENT_FALLBACK[group] || [];
+function categorize(tags){
+  const shop = tags.shop;
+  const name = (tags.name || tags.brand || '');
+
+  if (NAME_EXCLUDE_PATTERNS.some(p => p.test(name))) return null;
+
+  if (OWN_BRAND_PATTERN.test(name)) return { group:"REWE (eigene Filiale)", isFoodStore:true, own:true, brandAssortments:null };
+
+  const brand = BRAND_DB.find(b => b.pattern.test(name));
+  if (brand) return { group: brand.group, isFoodStore: brand.isFoodStore, own:false, brandAssortments: brand.assortments };
+
+  if (EXCLUDE_SHOP_TYPES.has(shop)) return null;
+
+  if (CATEGORY_MAP[shop]) return { group: CATEGORY_MAP[shop], isFoodStore:false, own:false, brandAssortments:null };
+  if (FOOD_WITH_NONFOOD[shop]) return { group: FOOD_WITH_NONFOOD[shop], isFoodStore:true, own:false, brandAssortments:null };
+
+  return null;
 }
 
-function renderAssortPills(assortments){
+function getAssortments(cat){
+  if (cat.brandAssortments) return cat.brandAssortments;
+  return GROUP_ASSORTMENT_FALLBACK[cat.group] || [];
+}
+
+// =========================================================================
+// REWE-Sortiment (eigene Auswahl, persistiert)
+// =========================================================================
+let reweAssortment = new Set(JSON.parse(localStorage.getItem('nfr_rewe_assortment') || '[]'));
+
+function saveReweAssortment(){
+  localStorage.setItem('nfr_rewe_assortment', JSON.stringify([...reweAssortment]));
+}
+
+function renderReweGrid(){
+  const grid = document.getElementById('reweGrid');
+  grid.innerHTML = '';
+  Object.entries(ASSORTMENT_LABELS).forEach(([id, label]) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'rewe-check' + (reweAssortment.has(id) ? ' checked' : '');
+    wrap.innerHTML = `<input type="checkbox" data-id="${id}" ${reweAssortment.has(id) ? 'checked' : ''}/> ${label}`;
+    wrap.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) reweAssortment.add(id); else reweAssortment.delete(id);
+      wrap.classList.toggle('checked', e.target.checked);
+      saveReweAssortment();
+      if (currentShops && currentShops.length) renderReweTab(currentShops);
+    });
+    grid.appendChild(wrap);
+  });
+}
+renderReweGrid();
+
+document.getElementById('presetCompact').addEventListener('click', () => {
+  reweAssortment = new Set(['haushaltswaren','drogerie']);
+  saveReweAssortment(); renderReweGrid();
+  if (currentShops && currentShops.length) renderReweTab(currentShops);
+});
+document.getElementById('presetStandard').addEventListener('click', () => {
+  reweAssortment = new Set(['haushaltswaren','drogerie','garten','party','deko']);
+  saveReweAssortment(); renderReweGrid();
+  if (currentShops && currentShops.length) renderReweTab(currentShops);
+});
+document.getElementById('presetClear').addEventListener('click', () => {
+  reweAssortment = new Set();
+  saveReweAssortment(); renderReweGrid();
+  if (currentShops && currentShops.length) renderReweTab(currentShops);
+});
+
+// =========================================================================
+// Gemeinsame Hilfsfunktionen
+// =========================================================================
+
+function haversine(lat1, lon1, lat2, lon2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function setStatus(msg, isError, elId){
+  const el = document.getElementById(elId || 'status');
+  el.textContent = msg;
+  el.className = 'status' + (isError ? ' error' : '');
+}
+
+async function geocode(address){
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=' + encodeURIComponent(address);
+  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+  if (!res.ok) throw new Error('Geocoding fehlgeschlagen (' + res.status + ')');
+  const data = await res.json();
+  if (!data.length) throw new Error('Adresse nicht gefunden. Bitte präzisieren (Straße, PLZ, Ort).');
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
+}
+
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
+async function overpassShops(lat, lon, radiusKm, statusElId){
+  const radiusM = Math.round(radiusKm * 1000);
+  const query = `
+    [out:json][timeout:40];
+    (
+      node["shop"](around:${radiusM},${lat},${lon});
+      way["shop"](around:${radiusM},${lat},${lon});
+    );
+    out center meta;
+  `;
+
+  let lastError;
+  for (const mirror of OVERPASS_MIRRORS){
+    try {
+      if (statusElId) setStatus('Frage Geschäftsdaten ab (' + mirror.replace('https://','').split('/')[0] + ') …', false, statusElId);
+      const res = await fetch(mirror, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query)
+      });
+      if (!res.ok){
+        if (res.status === 429 || res.status === 504){
+          lastError = new Error('Server ausgelastet (' + res.status + ')');
+          continue;
+        }
+        throw new Error('Overpass-Abfrage fehlgeschlagen (' + res.status + ')');
+      }
+      const data = await res.json();
+      return data.elements || [];
+    } catch (err){
+      lastError = err;
+      continue;
+    }
+  }
+  throw new Error('Alle Overpass-Server sind gerade nicht erreichbar. Bitte in 1–2 Minuten erneut versuchen. (' + (lastError ? lastError.message : '') + ')');
+}
+
+// Kernpipeline: Standort -> kategorisierte Geschäfte + eigene REWE-Filialen.
+async function analyzeLocation(center, radiusKm, statusElId){
+  const elements = await overpassShops(center.lat, center.lon, radiusKm, statusElId);
+  const shops = [];
+  const ownStores = [];
+  elements.forEach(el => {
+    const tags = el.tags || {};
+    const lat = el.lat || (el.center && el.center.lat);
+    const lon = el.lon || (el.center && el.center.lon);
+    if (lat == null || lon == null) return;
+    const cat = categorize(tags);
+    if (!cat) return;
+    const distance = haversine(center.lat, center.lon, lat, lon);
+    if (distance > radiusKm) return;
+    const shopName = tags.name || tags.brand || 'Unbenannt';
+    const entry = {
+      name: shopName,
+      shopType: tags.shop,
+      group: cat.group,
+      isFoodStore: cat.isFoodStore,
+      assortments: cat.own ? [] : getAssortments(cat),
+      lastEdited: el.timestamp || null,
+      lat, lon, distance
+    };
+    if (cat.own) ownStores.push(entry); else shops.push(entry);
+  });
+  const catCounts = {};
+  shops.forEach(s => { catCounts[s.group] = (catCounts[s.group] || 0) + 1; });
+  return { elementsTotal: elements.length, shops, ownStores, catCounts };
+}
+
+function groupByName(shops){
+  const groups = {};
+  shops.forEach(s => {
+    const key = s.name.trim().toLowerCase() + '|' + s.group;
+    if (!groups[key]){
+      groups[key] = { name: s.name, group: s.group, shopType: s.shopType, isFoodStore: s.isFoodStore, assortments: s.assortments, instances: [] };
+    }
+    groups[key].instances.push(s);
+  });
+  return Object.values(groups).map(g => {
+    g.instances.sort((a,b) => a.distance - b.distance);
+    g.minDistance = g.instances[0].distance;
+    g.count = g.instances.length;
+    return g;
+  });
+}
+
+function computeAssortmentCounts(shops){
+  const counts = {};
+  groupByName(shops).forEach(g => (g.assortments || []).forEach(a => { counts[a] = (counts[a] || 0) + 1; }));
+  return counts;
+}
+
+// Vergleicht Wettbewerbs-Sortimentsdaten mit der REWE-Auswahl.
+function computeGapAnalysis(shops){
+  const counts = computeAssortmentCounts(shops);
+  const priority = [], niche = [], covered = [];
+  Object.keys(ASSORTMENT_LABELS).forEach(id => {
+    const count = counts[id] || 0;
+    if (reweAssortment.has(id)){
+      covered.push({ id, count });
+    } else if (count >= 2){
+      priority.push({ id, count, tier: 'hoch' });
+    } else if (count === 1){
+      priority.push({ id, count, tier: 'mittel' });
+    } else {
+      niche.push({ id, count: 0 });
+    }
+  });
+  priority.sort((a,b) => b.count - a.count);
+  return { priority, niche, covered, counts };
+}
+
+function escapeAttr(str){
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderAssortPills(assortments, highlightGapIds){
   if (!assortments || !assortments.length) return '<span class="empty-note" style="padding:0;">–</span>';
-  return '<div class="assort-pills">' + assortments.map(a => `<span class="pill assort">${ASSORTMENT_LABELS[a] || a}</span>`).join('') + '</div>';
+  return '<div class="assort-pills">' + assortments.map(a => {
+    const gap = highlightGapIds && highlightGapIds.has(a);
+    return `<span class="pill assort${gap ? ' gap' : ''}">${ASSORTMENT_LABELS[a] || a}</span>`;
+  }).join('') + '</div>';
+}
+
+function gapIdSet(gapAnalysis){
+  return new Set(gapAnalysis.priority.map(p => p.id));
+}
+
+function renderGapList(items, tierClass, emptyText){
+  if (!items.length) return `<div class="empty-note">${emptyText}</div>`;
+  const list = document.createElement('ul');
+  list.className = 'gap-list';
+  list.innerHTML = items.map(it => {
+    const cls = tierClass || it.tier;
+    const label = ASSORTMENT_LABELS[it.id] || it.id;
+    const meta = it.count > 0
+      ? `${it.count} Wettbewerber im Radius führt${it.count===1?'':'en'} das bereits`
+      : 'kein Wettbewerber im Radius gefunden';
+    return `<li class="gap-item ${cls}">
+      <span class="gname">${label}</span>
+      <span class="gmeta">${meta}</span>
+      <span class="gap-tier ${cls}">${cls === 'hoch' ? 'Sofort prüfen' : cls === 'mittel' ? 'Chance' : cls === 'covered' ? 'Geführt' : 'Nische / Test'}</span>
+    </li>`;
+  }).join('');
+  return list.outerHTML;
+}
+
+function renderFreshnessBadge(timestampStr){
+  const info = getFreshnessInfo(timestampStr);
+  const title = timestampStr ? ` title="Zuletzt in OpenStreetMap bearbeitet: ${new Date(timestampStr).toLocaleDateString('de-DE')}"` : '';
+  return `<span class="live-badge ${info.cls}"${title}>${info.label}</span>`;
 }
 
 function getFreshnessInfo(timestampStr){
@@ -790,16 +1293,6 @@ function getFreshnessInfo(timestampStr){
   if (months <= 6) return { cls: 'ok', label: `🟢 OSM-Eintrag aktuell (${ageLabel})` };
   if (months <= 24) return { cls: 'warn', label: `🟡 OSM-Eintrag älter (${ageLabel}) – ggf. prüfen` };
   return { cls: 'closed', label: `🔴 OSM-Eintrag alt (${ageLabel}) – manuell prüfen!` };
-}
-
-function renderFreshnessBadge(timestampStr){
-  const info = getFreshnessInfo(timestampStr);
-  const title = timestampStr ? ` title="Zuletzt in OpenStreetMap bearbeitet: ${new Date(timestampStr).toLocaleDateString('de-DE')}"` : '';
-  return `<span class="live-badge ${info.cls}"${title}>${info.label}</span>`;
-}
-
-function escapeAttr(str){
-  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function renderCheckLink(name, lat, lon, addressLabel, rowId, lastEdited){
@@ -875,86 +1368,60 @@ async function checkAllLiveStatuses(){
   }
 }
 
-// ---------- Hilfsfunktionen ----------
-function haversine(lat1, lon1, lat2, lon2){
-  const R = 6371;
-  const dLat = (lat2-lat1) * Math.PI/180;
-  const dLon = (lon2-lon1) * Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
+document.getElementById('workerUrl').value = localStorage.getItem('nfr_worker_url') || '';
+document.getElementById('workerToken').value = localStorage.getItem('nfr_worker_token') || '';
+document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+  localStorage.setItem('nfr_worker_url', document.getElementById('workerUrl').value.trim());
+  localStorage.setItem('nfr_worker_token', document.getElementById('workerToken').value.trim());
+  setStatus('Live-Status-Einstellungen gespeichert.');
+});
+document.getElementById('checkAllBtn').addEventListener('click', checkAllLiveStatuses);
 
-function setStatus(msg, isError){
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = 'status' + (isError ? ' error' : '');
-}
+// =========================================================================
+// Moduswahl
+// =========================================================================
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const mode = btn.dataset.mode;
+    document.getElementById('panel-single').style.display = mode === 'single' ? '' : 'none';
+    document.getElementById('panel-batch').style.display = mode === 'batch' ? '' : 'none';
+  });
+});
 
+// =========================================================================
+// EINZELSTANDORT
+// =========================================================================
 let map, markersLayer;
+let currentShops = [];
+let currentOwnStores = [];
+let currentCenter = null;
+let activeAssortment = null;
+let tableRowIdCounter = 0;
 
-async function geocode(address){
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=' + encodeURIComponent(address);
-  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
-  if (!res.ok) throw new Error('Geocoding fehlgeschlagen (' + res.status + ')');
-  const data = await res.json();
-  if (!data.length) throw new Error('Adresse nicht gefunden. Bitte präzisieren (Straße, PLZ, Ort).');
-  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
+function switchTab(tabName){
+  document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+  ['markets','analysis','rewe','web','summary'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === tabName) ? '' : 'none';
+  });
 }
+document.querySelectorAll('#tabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
 
-const OVERPASS_MIRRORS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-];
-
-async function overpassShops(lat, lon, radiusKm){
-  const radiusM = Math.round(radiusKm * 1000);
-  const query = `
-    [out:json][timeout:40];
-    (
-      node["shop"](around:${radiusM},${lat},${lon});
-      way["shop"](around:${radiusM},${lat},${lon});
-    );
-    out center meta;
-  `;
-
-  let lastError;
-  for (const mirror of OVERPASS_MIRRORS){
-    try {
-      setStatus('Frage Geschäftsdaten ab (' + mirror.replace('https://','').split('/')[0] + ') …');
-      const res = await fetch(mirror, {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(query)
-      });
-      if (!res.ok){
-        if (res.status === 429 || res.status === 504){
-          lastError = new Error('Server ausgelastet (' + res.status + ')');
-          continue; // nächsten Mirror versuchen
-        }
-        throw new Error('Overpass-Abfrage fehlgeschlagen (' + res.status + ')');
-      }
-      const data = await res.json();
-      return data.elements || [];
-    } catch (err){
-      lastError = err;
-      continue;
-    }
-  }
-  throw new Error('Alle Overpass-Server sind gerade nicht erreichbar. Bitte in 1–2 Minuten erneut versuchen. (' + (lastError ? lastError.message : '') + ')');
-}
-
-function renderStats(shops, nonfoodShops, catCounts, radiusKm){
+function renderStats(elementsTotal, shops, catCounts, radiusKm, ownStores){
   const strip = document.getElementById('statStrip');
   const catCount = Object.keys(catCounts).length;
   strip.innerHTML = `
-    <div class="stat"><div class="n">${shops.length}</div><div class="l">Geschäfte gesamt</div></div>
-    <div class="stat"><div class="n">${nonfoodShops.length}</div><div class="l">mit Nonfood-Bezug</div></div>
-    <div class="stat"><div class="n">${catCount}</div><div class="l">Nonfood-Kategorien vertreten</div></div>
+    <div class="stat"><div class="n">${elementsTotal}</div><div class="l">Geschäfte gesamt</div></div>
+    <div class="stat"><div class="n">${shops.length}</div><div class="l">mit Nonfood-Bezug</div></div>
+    <div class="stat"><div class="n">${catCount}</div><div class="l">Betriebstypen vertreten</div></div>
+    <div class="stat"><div class="n rewe">${ownStores.length}</div><div class="l">eigene REWE-Filialen</div></div>
     <div class="stat"><div class="n">${radiusKm}</div><div class="l">km Radius</div></div>
   `;
 }
 
-function renderMap(center, shops){
+function renderMap(center, shops, ownStores){
   if (!map){
     map = L.map('map');
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -980,9 +1447,16 @@ function renderMap(center, shops){
       : '';
     marker.bindPopup(`<b>${s.name}</b><br>${s.group}${assortLine}<br><span style="font-family:monospace;font-size:11px;">${s.distance.toFixed(1)} km</span>`);
   });
+
+  (ownStores || []).forEach(s => {
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius: 7, color: '#cc071e', fillColor: '#cc071e', fillOpacity: 0.9, weight: 2
+    }).addTo(markersLayer);
+    marker.bindPopup(`<b>${s.name}</b><br>Eigene REWE-Filiale<br><span style="font-family:monospace;font-size:11px;">${s.distance.toFixed(1)} km</span>`);
+  });
 }
 
-function renderCategories(catCounts, totalNonfood){
+function renderCategories(catCounts){
   const list = document.getElementById('catList');
   list.innerHTML = '';
   const entries = Object.entries(catCounts).sort((a,b) => b[1]-a[1]);
@@ -1007,173 +1481,29 @@ function renderCategories(catCounts, totalNonfood){
   });
 }
 
-function renderOpportunities(catCounts, nonfoodShops){
+function renderOpportunities(catCounts, shops){
   const el = document.getElementById('opportunityText');
-  const allGroups = new Set([...Object.values(CATEGORY_MAP)]);
+  const allGroups = new Set(BRAND_DB.filter(b=>!b.isFoodStore).map(b=>b.group).concat(Object.values(CATEGORY_MAP)));
   const present = new Set(Object.keys(catCounts));
   const missing = [...allGroups].filter(g => !present.has(g));
   const weak = Object.entries(catCounts).filter(([,c]) => c <= 2).map(([g]) => g);
 
   let html = '';
   if (missing.length){
-    html += `<p><strong>Nicht vertreten im Umkreis:</strong> ${missing.join(', ')}. Diese Segmente hat aktuell niemand im Radius besetzt — potenzielle Alleinstellung, falls Zielgruppe passt.</p>`;
+    html += `<p><strong>Nicht vertreten im Umkreis:</strong> ${missing.join(', ')}. Diese Betriebstypen hat aktuell niemand im Radius besetzt.</p>`;
   }
   if (weak.length){
     html += `<p><strong>Schwach besetzt (max. 2 Anbieter):</strong> ${weak.join(', ')}. Hier reicht oft schon ein kleines, gezieltes Randsortiment, um sichtbar zu werden.</p>`;
   }
-  const foodCompetitors = nonfoodShops.filter(s => s.isFoodStore).length;
+  const foodCompetitors = shops.filter(s => s.isFoodStore).length;
   if (foodCompetitors > 0){
-    html += `<p><strong>${foodCompetitors}</strong> Lebensmittel-Wettbewerber im Radius führen selbst schon Nonfood-Aktionsware — das ist dein direkter Vergleichsmaßstab für Kern-Randsortimente (Haushalt, Deko, Saison, Gartenartikel).</p>`;
+    html += `<p><strong>${foodCompetitors}</strong> Lebensmittel-Wettbewerber im Radius führen selbst schon Nonfood-Aktionsware — das ist dein direkter Vergleichsmaßstab für Kern-Randsortimente.</p>`;
   }
-  if (!html){
-    html = '<p>Alle gängigen Nonfood-Segmente sind bereits gut vertreten — Differenzierung eher über Marke, Preis oder Sonderaktionen statt über neue Warengruppen.</p>';
-  }
+  html += `<p>Für eine konkret auf euer eigenes REWE-Sortiment zugeschnittene Priorisierung: siehe Tab <strong>„REWE-Abgleich“</strong>.</p>`;
   el.innerHTML = html;
 }
 
-// Konkrete, realistisch umsetzbare Randsortiment-Vorschläge je Kategorie —
-// gedacht für ein Nonfood-Zusatzsortiment im Lebensmitteleinzelhandel,
-// nicht für ein Vollsortiment wie beim Fachhändler.
-const SUGGESTION_MAP = {
-  "Drogeriemarkt": "Basis-Drogerieartikel: Pflege-, Hygiene- und Reinigungsprodukte als Randsortiment neben der Kasse.",
-  "Baumarkt": "Kleinteile-Sortiment: Batterien, Glühbirnen, Klebeband, einfache Werkzeuge, Saison-Gartenartikel.",
-  "Elektromarkt": "Kabel, Adapter, Batterien, kleine Haushaltsgeräte sowie Saisonelektronik (z.B. Grillzubehör, Lichterketten).",
-  "Kaufhaus": "Basis-Textilien, Haushaltswaren und Geschenkartikel als kleines Zusatzsortiment.",
-  "Sonderposten / Nonfood-Discounter": "Deko- und Geschenkartikel, Saisonware (Ostern, Weihnachten, Grillsaison), klassische Aktions-Nonfood-Ware.",
-};
-
-function buildRecommendations(catCounts){
-  const allGroups = Object.keys(CATEGORY_MAP).map(k => CATEGORY_MAP[k]);
-  const uniqueGroups = [...new Set(allGroups)];
-  return uniqueGroups.map(group => {
-    const count = catCounts[group] || 0;
-    let status, cls, tag;
-    if (count === 0){ status = 'Große Lücke — niemand besetzt dieses Segment im Radius.'; cls=''; tag='Klare Chance'; }
-    else if (count <= 2){ status = `Nur ${count} Anbieter im Radius — Platz für ein gezieltes Randsortiment.`; cls='mid'; tag='Chance'; }
-    else { status = `${count} Anbieter bereits vertreten — Segment ist umkämpft.`; cls='saturated'; tag='Gesättigt'; }
-    return { group, count, status, cls, tag, suggestion: SUGGESTION_MAP[group] || '' };
-  }).sort((a,b) => a.count - b.count);
-}
-
-function renderSummary(catCounts, nonfoodShops, radiusKm, addressLabel){
-  const el = document.getElementById('summaryText');
-  const recs = buildRecommendations(catCounts);
-  const foodCompetitors = nonfoodShops.filter(s => s.isFoodStore).length;
-  const totalNonfoodPlayers = nonfoodShops.length - foodCompetitors;
-
-  let lead = `<div class="summary-lead">
-    Im <strong>${radiusKm}-km-Radius</strong> um <strong>${addressLabel}</strong> wurden
-    <strong>${totalNonfoodPlayers}</strong> reine Nonfood-Filialisten und
-    <strong>${foodCompetitors}</strong> Lebensmittelhändler mit Nonfood-Aktionsware gefunden.
-    Die folgende Priorisierung zeigt, welches Nonfood-Sortiment sich am ehesten lohnt —
-    von der größten Lücke bis zum gesättigten Segment.
-  </div>`;
-
-  const cards = recs.map(r => `
-    <div class="rec-card ${r.cls}">
-      <div class="rec-head"><span>${r.group}</span><span class="rec-tag">${r.tag}</span></div>
-      <p>${r.status}${r.suggestion ? ' <strong>Vorschlag:</strong> ' + r.suggestion : ''}</p>
-    </div>
-  `).join('');
-
-  el.innerHTML = lead + cards;
-}
-
-const WEB_RESEARCH_BRANDS = [
-  'Action', 'Aldi', 'Lidl', 'Kaufland', 'Rewe', 'Edeka', 'Penny', 'Netto',
-  'TEDi', 'Woolworth', 'dm-drogerie markt', 'Rossmann', 'Müller Drogerie',
-  'OBI', 'Hornbach', 'Bauhaus', 'toom Baumarkt', 'MediaMarkt', 'Saturn', 'expert'
-];
-
-function renderWebResearch(center, addressLabel){
-  const el = document.getElementById('webLinks');
-  el.innerHTML = '';
-  WEB_RESEARCH_BRANDS.forEach(brand => {
-    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(brand)}/@${center.lat},${center.lon},13z`;
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(brand + ' in der Nähe von ' + addressLabel)}`;
-    const card = document.createElement('div');
-    card.className = 'web-link-card';
-    card.innerHTML = `
-      <span class="brand">${brand}</span>
-      <a href="${mapsUrl}" target="_blank" rel="noopener">Karte ↗</a>
-      <a href="${searchUrl}" target="_blank" rel="noopener">Suche ↗</a>
-    `;
-    el.appendChild(card);
-  });
-}
-
-
-// und 0,2 km — oft mehrere OSM-Punkte für denselben Laden/Eingang) zu einer
-// Gruppe zusammen. Gruppiert nach normalisiertem Namen + Kategorie.
-function groupByName(shops){
-  const groups = {};
-  shops.forEach(s => {
-    const key = s.name.trim().toLowerCase() + '|' + s.group;
-    if (!groups[key]){
-      groups[key] = { name: s.name, group: s.group, shopType: s.shopType, isFoodStore: s.isFoodStore, assortments: s.assortments, instances: [] };
-    }
-    groups[key].instances.push(s);
-  });
-  return Object.values(groups).map(g => {
-    g.instances.sort((a,b) => a.distance - b.distance);
-    g.minDistance = g.instances[0].distance;
-    g.count = g.instances.length;
-    return g;
-  });
-}
-
-let tableRowIdCounter = 0;
-
-function renderTable(shops){
-  const body = document.getElementById('shopTableBody');
-  body.innerHTML = '';
-  document.getElementById('shopCount').textContent = shops.length;
-  const grouped = groupByName(shops).sort((a,b) => a.minDistance - b.minDistance);
-  if (!grouped.length){
-    body.innerHTML = '<tr><td colspan="6" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
-    return;
-  }
-  grouped.forEach(g => {
-    const pillClass = g.isFoodStore ? 'pill food' : 'pill';
-    const rowId = 'grp-' + (tableRowIdCounter++);
-    const tr = document.createElement('tr');
-    const countBadge = g.count > 1
-      ? `<span class="dup-badge" data-target="${rowId}">×${g.count} <span class="caret">▾</span></span>`
-      : '';
-    const addressLabel = currentCenter ? currentCenter.label : '';
-    tr.innerHTML = `
-      <td class="dist">${g.minDistance.toFixed(1)} km</td>
-      <td>${g.name} ${countBadge}</td>
-      <td>${g.shopType}</td>
-      <td><span class="${pillClass}">${g.group}</span></td>
-      <td>${renderAssortPills(g.assortments)}</td>
-      <td>${renderCheckLink(g.name, g.instances[0].lat, g.instances[0].lon, addressLabel, rowId, g.instances[0].lastEdited)}</td>
-    `;
-    body.appendChild(tr);
-
-    if (g.count > 1){
-      const sub = document.createElement('tr');
-      sub.className = 'sub-row';
-      sub.id = rowId;
-      sub.style.display = 'none';
-      const items = g.instances.map(inst => `${inst.distance.toFixed(1)} km`).join(' · ');
-      sub.innerHTML = `<td></td><td colspan="5" class="sub-detail">Standorte: ${items}</td>`;
-      body.appendChild(sub);
-    }
-  });
-  wireLiveCheckButtons();
-
-  body.querySelectorAll('.dup-badge').forEach(badge => {
-    badge.addEventListener('click', () => {
-      const target = document.getElementById(badge.dataset.target);
-      const isOpen = target.style.display !== 'none';
-      target.style.display = isOpen ? 'none' : 'table-row';
-      badge.querySelector('.caret').textContent = isOpen ? '▾' : '▴';
-    });
-  });
-}
-
-function renderAssortmentBreakdown(shops){
+function renderAssortmentBreakdown(shops, gapIds){
   const el = document.getElementById('assortmentBreakdown');
   el.innerHTML = '';
   if (!shops.length){
@@ -1203,7 +1533,7 @@ function renderAssortmentBreakdown(shops){
           <div style="display:flex;justify-content:space-between;">
             <span class="dname">${g.name} ${badge}</span><span class="ddist">${g.minDistance.toFixed(1)} km</span>
           </div>
-          ${renderAssortPills(g.assortments)}
+          ${renderAssortPills(g.assortments, gapIds)}
         </li>
         ${detail}
       `;
@@ -1225,9 +1555,67 @@ function renderAssortmentBreakdown(shops){
   });
 }
 
-let currentShops = [];
-let currentCenter = null;
-let activeAssortment = null;
+function renderTable(shops, gapIds){
+  const body = document.getElementById('shopTableBody');
+  body.innerHTML = '';
+  document.getElementById('shopCount').textContent = shops.length;
+  const grouped = groupByName(shops).sort((a,b) => a.minDistance - b.minDistance);
+  if (!grouped.length){
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
+    return;
+  }
+  grouped.forEach(g => {
+    const pillClass = g.isFoodStore ? 'pill food' : 'pill';
+    const rowId = 'grp-' + (tableRowIdCounter++);
+    const tr = document.createElement('tr');
+    const countBadge = g.count > 1
+      ? `<span class="dup-badge" data-target="${rowId}">×${g.count} <span class="caret">▾</span></span>`
+      : '';
+    const addressLabel = currentCenter ? currentCenter.label : '';
+    tr.innerHTML = `
+      <td class="dist">${g.minDistance.toFixed(1)} km</td>
+      <td>${g.name} ${countBadge}</td>
+      <td>${g.shopType || '–'}</td>
+      <td><span class="${pillClass}">${g.group}</span></td>
+      <td>${renderAssortPills(g.assortments, gapIds)}</td>
+      <td>${renderCheckLink(g.name, g.instances[0].lat, g.instances[0].lon, addressLabel, rowId, g.instances[0].lastEdited)}</td>
+    `;
+    body.appendChild(tr);
+
+    if (g.count > 1){
+      const sub = document.createElement('tr');
+      sub.className = 'sub-row';
+      sub.id = rowId;
+      sub.style.display = 'none';
+      const items = g.instances.map(inst => `${inst.distance.toFixed(1)} km`).join(' · ');
+      sub.innerHTML = `<td></td><td colspan="5" class="sub-detail">Standorte: ${items}</td>`;
+      body.appendChild(sub);
+    }
+  });
+  wireLiveCheckButtons();
+
+  body.querySelectorAll('.dup-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+      const target = document.getElementById(badge.dataset.target);
+      const isOpen = target.style.display !== 'none';
+      target.style.display = isOpen ? 'none' : 'table-row';
+      badge.querySelector('.caret').textContent = isOpen ? '▾' : '▴';
+    });
+  });
+}
+
+function renderOwnStores(ownStores){
+  document.getElementById('ownStoreCount').textContent = ownStores.length;
+  const el = document.getElementById('ownStoresList');
+  if (!ownStores.length){
+    el.innerHTML = '<div class="empty-note">Keine weiteren eigenen REWE-Filialen im Radius gefunden.</div>';
+    return;
+  }
+  const grouped = groupByName(ownStores).sort((a,b)=>a.minDistance-b.minDistance);
+  el.innerHTML = '<div class="assort-pills" style="gap:8px;">' + grouped.map(g =>
+    `<span class="pill own" style="font-size:12px;padding:5px 10px;">${g.name} · ${g.minDistance.toFixed(1)} km${g.count>1 ? ' (×'+g.count+')' : ''}</span>`
+  ).join('') + '</div>';
+}
 
 function renderAssortFilter(shops){
   const el = document.getElementById('assortFilter');
@@ -1260,20 +1648,97 @@ function applyAssortmentFilter(){
   const filtered = activeAssortment
     ? currentShops.filter(s => (s.assortments || []).includes(activeAssortment))
     : currentShops;
-  renderTable(filtered);
-  renderMap(currentCenter, filtered);
+  const gaps = gapIdSet(computeGapAnalysis(currentShops));
+  renderTable(filtered, gaps);
+  renderMap(currentCenter, filtered, currentOwnStores);
   renderAssortFilter(currentShops);
 }
 
-function switchTab(tabName){
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
-  ['markets','analysis','web','summary'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = (t === tabName) ? '' : 'none';
+function renderReweTab(shops){
+  const ga = computeGapAnalysis(shops);
+  document.getElementById('reweGapPriority').innerHTML = renderGapList(ga.priority, null, 'Keine offenen Chancen gefunden — entweder ist alles bei REWE bereits gelistet oder es gibt hier keine Wettbewerber.');
+  document.getElementById('reweGapNiche').innerHTML = renderGapList(ga.niche, 'niche', 'Keine unklaren Segmente.');
+  document.getElementById('reweGapCovered').innerHTML = renderGapList(ga.covered, 'covered', 'REWE führt laut Auswahl aktuell keine der erfassten Warengruppen.');
+}
+
+const WEB_RESEARCH_BRANDS = [
+  'Action', 'Aldi', 'Lidl', 'Kaufland', 'Edeka', 'Penny', 'Netto',
+  'TEDi', 'Woolworth', 'dm-drogerie markt', 'Rossmann', 'Müller Drogerie',
+  'OBI', 'Hornbach', 'Bauhaus', 'toom Baumarkt', 'MediaMarkt', 'Saturn', 'expert',
+  'Fressnapf', 'Das Futterhaus', 'Depot', 'Thalia', 'JYSK', 'NKD', 'KiK'
+];
+
+function renderWebResearch(center, addressLabel){
+  const el = document.getElementById('webLinks');
+  el.innerHTML = '';
+  WEB_RESEARCH_BRANDS.forEach(brand => {
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(brand)}/@${center.lat},${center.lon},13z`;
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(brand + ' in der Nähe von ' + addressLabel)}`;
+    const card = document.createElement('div');
+    card.className = 'web-link-card';
+    card.innerHTML = `
+      <span class="brand">${brand}</span>
+      <a href="${mapsUrl}" target="_blank" rel="noopener">Karte ↗</a>
+      <a href="${searchUrl}" target="_blank" rel="noopener">Suche ↗</a>
+    `;
+    el.appendChild(card);
   });
 }
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-});
+
+const SUGGESTION_MAP = {
+  "Drogeriemarkt": "Basis-Drogerieartikel: Pflege-, Hygiene- und Reinigungsprodukte als Randsortiment neben der Kasse.",
+  "Baumarkt": "Kleinteile-Sortiment: Batterien, Glühbirnen, Klebeband, einfache Werkzeuge, Saison-Gartenartikel.",
+  "Elektromarkt": "Kabel, Adapter, Batterien, kleine Haushaltsgeräte sowie Saisonelektronik (z.B. Grillzubehör, Lichterketten).",
+  "Kaufhaus": "Basis-Textilien, Haushaltswaren und Geschenkartikel als kleines Zusatzsortiment.",
+  "Nonfood-Sonderposten": "Deko- und Geschenkartikel, Saisonware (Ostern, Weihnachten, Grillsaison), klassische Aktions-Nonfood-Ware.",
+  "Tierbedarf-Fachmarkt": "Kleines Tierbedarfs-Randsortiment: Futter, Streu, einfaches Zubehör.",
+  "Deko- & Geschenke-Fachmarkt": "Saisonale Deko- und Geschenkartikel als Kassen-nahes Randsortiment.",
+  "Bücher- & Medien-Fachmarkt": "Bestseller/Ratgeber sowie Rätsel-/Kinderhefte im Kassenbereich.",
+  "Wohn- & Textilien-Fachmarkt": "Einfache Heimtextilien (Handtücher, Küchentextilien) als Randsortiment.",
+  "Textil-Discounter": "Basic-Textilien für Kinder/Erwachsene als saisonale Aktionsware.",
+};
+
+function buildRecommendations(gapAnalysis){
+  return [...gapAnalysis.priority, ...gapAnalysis.niche].map(it => {
+    let status, cls, tag;
+    if (it.tier === 'hoch'){ status = `${it.count} Wettbewerber führen das bereits — REWE (laut Auswahl) noch nicht. Direkte, geprüfte Nachfrage.`; cls=''; tag='Sofort prüfen'; }
+    else if (it.tier === 'mittel'){ status = `1 Wettbewerber führt das bereits — REWE (laut Auswahl) noch nicht. Kleinere, aber reale Nachfrage.`; cls='mid'; tag='Chance'; }
+    else { status = 'Kein Wettbewerber im Radius führt diese Warengruppe — unklare Nachfrage, eher testweise einführen.'; cls='saturated'; tag='Nische / Test'; }
+    return { group: ASSORTMENT_LABELS[it.id] || it.id, status, cls, tag, suggestion: '' };
+  }).sort((a,b) => (a.cls === '' ? 0 : a.cls === 'mid' ? 1 : 2) - (b.cls === '' ? 0 : b.cls === 'mid' ? 1 : 2));
+}
+
+function renderSummary(shops, ownStores, radiusKm, addressLabel){
+  const el = document.getElementById('summaryText');
+  const ga = computeGapAnalysis(shops);
+  const recs = buildRecommendations(ga);
+  const foodCompetitors = shops.filter(s => s.isFoodStore).length;
+  const totalNonfoodPlayers = shops.length - foodCompetitors;
+
+  let lead = `<div class="summary-lead">
+    Im <strong>${radiusKm}-km-Radius</strong> um <strong>${addressLabel}</strong> wurden
+    <strong>${totalNonfoodPlayers}</strong> reine Nonfood-Filialisten,
+    <strong>${foodCompetitors}</strong> Lebensmittelhändler mit Nonfood-Aktionsware und
+    <strong>${ownStores.length}</strong> eigene REWE-Filialen gefunden.
+    Die folgende Priorisierung ist gegen euer aktuelles REWE-Sortiment (siehe Auswahl oben) gerechnet —
+    von der geprüftesten Ergänzungs-Chance bis zur unklaren Nische.
+  </div>`;
+
+  if (!recs.length){
+    lead += '<div class="empty-note">Laut aktueller Sortimentsauswahl führt REWE bereits alle erfassten Warengruppen — Differenzierung eher über Marke, Preis oder Sonderaktionen.</div>';
+    el.innerHTML = lead;
+    return;
+  }
+
+  const cards = recs.map(r => `
+    <div class="rec-card ${r.cls}">
+      <div class="rec-head"><span>${r.group}</span><span class="rec-tag">${r.tag}</span></div>
+      <p>${r.status}</p>
+    </div>
+  `).join('');
+
+  el.innerHTML = lead + cards;
+}
 
 async function runAnalysis(){
   const address = document.getElementById('address').value.trim();
@@ -1290,53 +1755,30 @@ async function runAnalysis(){
     const center = await geocode(address);
     setStatus(`Standort gefunden: ${center.label} — suche Geschäfte im ${radiusKm}-km-Radius …`);
 
-    const elements = await overpassShops(center.lat, center.lon, radiusKm);
+    const { elementsTotal, shops, ownStores, catCounts } = await analyzeLocation(center, radiusKm, 'status');
 
-    const shops = [];
-    elements.forEach(el => {
-      const tags = el.tags || {};
-      const lat = el.lat || (el.center && el.center.lat);
-      const lon = el.lon || (el.center && el.center.lon);
-      if (lat == null || lon == null) return;
-      const cat = categorize(tags);
-      if (!cat) return;
-      const distance = haversine(center.lat, center.lon, lat, lon);
-      if (distance > radiusKm) return;
-      const shopName = tags.name || tags.brand || 'Unbenannt';
-      shops.push({
-        name: shopName,
-        shopType: tags.shop,
-        group: cat.group,
-        isFoodStore: cat.isFoodStore,
-        assortments: getAssortments(shopName, cat.group),
-        lastEdited: el.timestamp || null,
-        lat, lon, distance
-      });
-    });
-
-    const nonfoodShops = shops; // alle bereits kategorisiert = nonfood-relevant
-    const catCounts = {};
-    nonfoodShops.forEach(s => {
-      catCounts[s.group] = (catCounts[s.group] || 0) + 1;
-    });
-
-    currentShops = nonfoodShops;
+    currentShops = shops;
+    currentOwnStores = ownStores;
     currentCenter = center;
     activeAssortment = null;
 
-    renderStats(elements, nonfoodShops, catCounts, radiusKm);
-    renderMap(center, nonfoodShops);
-    renderCategories(catCounts, nonfoodShops.length);
-    renderOpportunities(catCounts, nonfoodShops);
-    renderAssortFilter(nonfoodShops);
-    renderTable(nonfoodShops);
-    renderAssortmentBreakdown(nonfoodShops);
+    const gaps = gapIdSet(computeGapAnalysis(shops));
+
+    renderStats(elementsTotal, shops, catCounts, radiusKm, ownStores);
+    renderMap(center, shops, ownStores);
+    renderCategories(catCounts);
+    renderOpportunities(catCounts, shops);
+    renderAssortFilter(shops);
+    renderTable(shops, gaps);
+    renderOwnStores(ownStores);
+    renderAssortmentBreakdown(shops, gaps);
+    renderReweTab(shops);
     renderWebResearch(center, center.label);
-    renderSummary(catCounts, nonfoodShops, radiusKm, center.label);
+    renderSummary(shops, ownStores, radiusKm, center.label);
 
     document.getElementById('results').classList.add('show');
     switchTab('markets');
-    setStatus(`Fertig — ${nonfoodShops.length} Nonfood-relevante Geschäfte gefunden.`);
+    setStatus(`Fertig — ${shops.length} Nonfood-relevante Wettbewerber und ${ownStores.length} eigene REWE-Filialen gefunden.`);
   } catch (err) {
     console.error(err);
     setStatus('Fehler: ' + err.message, true);
@@ -1350,15 +1792,286 @@ document.getElementById('address').addEventListener('keydown', e => {
   if (e.key === 'Enter') runAnalysis();
 });
 
-// ---------- Live-Status-Einstellungen (Cloudflare Worker) ----------
-document.getElementById('workerUrl').value = localStorage.getItem('nfr_worker_url') || '';
-document.getElementById('workerToken').value = localStorage.getItem('nfr_worker_token') || '';
-document.getElementById('saveSettingsBtn').addEventListener('click', () => {
-  localStorage.setItem('nfr_worker_url', document.getElementById('workerUrl').value.trim());
-  localStorage.setItem('nfr_worker_token', document.getElementById('workerToken').value.trim());
-  setStatus('Live-Status-Einstellungen gespeichert.');
+// ---- Export: Einzelstandort ----
+document.getElementById('exportExcelSingleBtn').addEventListener('click', () => {
+  if (!currentShops.length && !currentOwnStores.length){ setStatus('Bitte zuerst eine Analyse ausführen.', true); return; }
+  const ga = computeGapAnalysis(currentShops);
+  const wb = XLSX.utils.book_new();
+
+  const shopRows = groupByName(currentShops).sort((a,b)=>a.minDistance-b.minDistance).map(g => ({
+    'Entfernung (km)': g.minDistance.toFixed(1),
+    'Name': g.name,
+    'Betriebstyp': g.group,
+    'Lebensmittelhändler': g.isFoodStore ? 'Ja' : 'Nein',
+    'Geführte Sortimente': (g.assortments||[]).map(a => ASSORTMENT_LABELS[a]||a).join(', '),
+    'Filialen im Radius': g.count,
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shopRows), 'Wettbewerber');
+
+  const gapRows = [...ga.priority, ...ga.niche, ...ga.covered.map(c=>({...c, tier:'geführt'}))].map(it => ({
+    'Warengruppe': ASSORTMENT_LABELS[it.id]||it.id,
+    'Status': it.tier === 'hoch' ? 'Sofort prüfen' : it.tier === 'mittel' ? 'Chance' : it.tier === 'geführt' ? 'Bei REWE bereits geführt' : 'Nische / unklare Nachfrage',
+    'Wettbewerber im Radius': it.count,
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gapRows), 'REWE-Abgleich');
+
+  const ownRows = groupByName(currentOwnStores).sort((a,b)=>a.minDistance-b.minDistance).map(g => ({
+    'Entfernung (km)': g.minDistance.toFixed(1), 'Name': g.name, 'Filialen im Radius': g.count
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ownRows.length?ownRows:[{Hinweis:'Keine eigenen Filialen im Radius'}]), 'Eigene Filialen');
+
+  const meta = [{ 'Standort': currentCenter ? currentCenter.label : '', 'Radius (km)': document.getElementById('radius').value, 'Erstellt am': new Date().toLocaleString('de-DE') }];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(meta), 'Info');
+
+  XLSX.writeFile(wb, 'REWE-Nonfood-Analyse.xlsx');
 });
-document.getElementById('checkAllBtn').addEventListener('click', checkAllLiveStatuses);
+
+document.getElementById('exportPdfSingleBtn').addEventListener('click', () => window.print());
+
+// =========================================================================
+// BATCH-VERGLEICH
+// =========================================================================
+let batchMap, batchMarkersLayer;
+let batchResultsData = [];
+let batchCancelled = false;
+
+function parseBatchInput(raw){
+  return raw.split('\n').map(l => l.trim()).filter(Boolean).map((line, i) => {
+    const idx = line.indexOf(';');
+    if (idx === -1) return { name: `Standort ${i+1}`, address: line };
+    return { name: line.slice(0, idx).trim() || `Standort ${i+1}`, address: line.slice(idx+1).trim() };
+  });
+}
+
+function scoreClass(score){
+  if (score >= 8) return 'high';
+  if (score >= 3) return 'mid';
+  return 'low';
+}
+
+async function runBatchAnalysis(){
+  const raw = document.getElementById('batchInput').value.trim();
+  const entries = parseBatchInput(raw);
+  if (!entries.length){
+    setStatus('Bitte mindestens eine Zeile mit Adresse eingeben.', true, 'batchStatus');
+    return;
+  }
+  const radiusKm = parseFloat(document.getElementById('batchRadius').value) || 10;
+
+  batchCancelled = false;
+  batchResultsData = [];
+  const startBtn = document.getElementById('batchStartBtn');
+  const cancelBtn = document.getElementById('batchCancelBtn');
+  startBtn.disabled = true;
+  cancelBtn.style.display = '';
+  document.getElementById('batchProgressWrap').style.display = '';
+  document.getElementById('batchResults').classList.remove('show');
+
+  for (let i = 0; i < entries.length; i++){
+    if (batchCancelled){ setStatus('Batch abgebrochen.', true, 'batchStatus'); break; }
+    const entry = entries[i];
+    const pct = Math.round((i / entries.length) * 100);
+    document.getElementById('batchProgressBar').style.width = pct + '%';
+    document.getElementById('batchProgressText').textContent = `${i+1} / ${entries.length} — ${entry.name}`;
+    setStatus(`Geocodiere „${entry.address}“ …`, false, 'batchStatus');
+
+    try {
+      const center = await geocode(entry.address);
+      await new Promise(r => setTimeout(r, 1100)); // Nominatim: max. 1 Anfrage/Sekunde
+      setStatus(`Suche Geschäfte für „${entry.name}“ …`, false, 'batchStatus');
+      const { shops, ownStores, catCounts } = await analyzeLocation(center, radiusKm, 'batchStatus');
+      const ga = computeGapAnalysis(shops);
+      const score = ga.priority.reduce((s,p) => s + p.count, 0);
+      batchResultsData.push({ entry, center, shops, ownStores, catCounts, gapAnalysis: ga, score, radiusKm });
+    } catch (err){
+      batchResultsData.push({ entry, error: err.message });
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  document.getElementById('batchProgressBar').style.width = '100%';
+  document.getElementById('batchProgressText').textContent = `Fertig — ${batchResultsData.filter(r=>!r.error).length} von ${entries.length} Standorten erfolgreich analysiert.`;
+  startBtn.disabled = false;
+  cancelBtn.style.display = 'none';
+  setStatus(batchCancelled ? 'Batch abgebrochen.' : 'Batch-Analyse abgeschlossen.', batchCancelled, 'batchStatus');
+
+  renderBatchResults();
+}
+
+document.getElementById('batchStartBtn').addEventListener('click', runBatchAnalysis);
+document.getElementById('batchCancelBtn').addEventListener('click', () => { batchCancelled = true; });
+
+function renderBatchStats(){
+  const ok = batchResultsData.filter(r => !r.error);
+  const totalCompetitors = ok.reduce((s,r) => s + groupByName(r.shops).length, 0);
+  const totalOwn = ok.reduce((s,r) => s + groupByName(r.ownStores).length, 0);
+  const avgScore = ok.length ? (ok.reduce((s,r)=>s+r.score,0)/ok.length).toFixed(1) : '0';
+  document.getElementById('batchStatStrip').innerHTML = `
+    <div class="stat"><div class="n">${ok.length}</div><div class="l">Standorte analysiert</div></div>
+    <div class="stat"><div class="n">${totalCompetitors}</div><div class="l">Wettbewerber gesamt (unique)</div></div>
+    <div class="stat"><div class="n rewe">${totalOwn}</div><div class="l">eigene Filialen gesamt (unique)</div></div>
+    <div class="stat"><div class="n">${avgScore}</div><div class="l">Ø Prioritäts-Score</div></div>
+  `;
+}
+
+function renderBatchMap(){
+  if (!batchMap){
+    batchMap = L.map('batchMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende', maxZoom: 19
+    }).addTo(batchMap);
+    batchMarkersLayer = L.layerGroup().addTo(batchMap);
+  }
+  batchMarkersLayer.clearLayers();
+  const ok = batchResultsData.filter(r => !r.error);
+  if (!ok.length) return;
+  const bounds = [];
+  ok.forEach(r => {
+    bounds.push([r.center.lat, r.center.lon]);
+    const cls = scoreClass(r.score);
+    const color = cls === 'high' ? '#cc071e' : cls === 'mid' ? '#c96f16' : '#155359';
+    L.circle([r.center.lat, r.center.lon], { radius: r.radiusKm*1000, color, fillColor: color, fillOpacity: 0.06, weight: 1 }).addTo(batchMarkersLayer);
+    L.marker([r.center.lat, r.center.lon]).addTo(batchMarkersLayer)
+      .bindPopup(`<b>${r.entry.name}</b><br>Prioritäts-Score: ${r.score}<br><span style="font-size:11px;">${r.center.label}</span>`);
+  });
+  batchMap.fitBounds(bounds, { padding: [30,30] });
+}
+
+function renderBatchTable(){
+  const body = document.getElementById('batchTableBody');
+  body.innerHTML = '';
+  batchResultsData.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    if (r.error){
+      tr.innerHTML = `<td>${r.entry.name}</td><td colspan="6" class="empty-note">Fehler: ${r.error}</td>`;
+      body.appendChild(tr);
+      return;
+    }
+    const top3 = r.gapAnalysis.priority.slice(0,3).map(p => ASSORTMENT_LABELS[p.id]||p.id).join(', ') || '–';
+    const rowId = 'batch-' + idx;
+    tr.innerHTML = `
+      <td>${r.entry.name}</td>
+      <td style="max-width:220px;">${r.center.label}</td>
+      <td>${groupByName(r.shops).length}</td>
+      <td>${groupByName(r.ownStores).length}</td>
+      <td>${top3}</td>
+      <td><span class="batch-score ${scoreClass(r.score)}">${r.score}</span></td>
+      <td><button class="dup-badge" data-target="${rowId}">Details <span class="caret">▾</span></button></td>
+    `;
+    body.appendChild(tr);
+
+    const sub = document.createElement('tr');
+    sub.className = 'batch-sub';
+    sub.id = rowId;
+    sub.style.display = 'none';
+    const gaps = gapIdSet(r.gapAnalysis);
+    const grouped = groupByName(r.shops).sort((a,b)=>a.minDistance-b.minDistance);
+    sub.innerHTML = `<td colspan="7">
+      ${renderGapList(r.gapAnalysis.priority, null, 'Keine offenen Chancen an diesem Standort.')}
+      <div style="margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#7a7466;">Wettbewerber im Radius:</div>
+      <div style="margin-top:6px;">${grouped.map(g => `<span class="pill" style="margin:2px;">${g.name} · ${g.minDistance.toFixed(1)} km</span>`).join('') || '<span class="empty-note" style="padding:4px 0;">Keine gefunden</span>'}</div>
+    </td>`;
+    body.appendChild(sub);
+  });
+
+  body.querySelectorAll('.dup-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+      const target = document.getElementById(badge.dataset.target);
+      const isOpen = target.style.display !== 'none';
+      target.style.display = isOpen ? 'none' : 'table-row';
+      badge.querySelector('.caret').textContent = isOpen ? '▾' : '▴';
+    });
+  });
+}
+
+function renderNetworkRecommendation(){
+  const el = document.getElementById('networkRecommendation');
+  const ok = batchResultsData.filter(r => !r.error);
+  if (!ok.length){ el.innerHTML = '<div class="empty-note">Keine erfolgreich analysierten Standorte.</div>'; return; }
+
+  const stats = {};
+  Object.keys(ASSORTMENT_LABELS).forEach(id => { stats[id] = { stores: 0, totalCompetitors: 0 }; });
+  ok.forEach(r => {
+    r.gapAnalysis.priority.forEach(p => {
+      stats[p.id].stores += 1;
+      stats[p.id].totalCompetitors += p.count;
+    });
+  });
+  const ranked = Object.entries(stats)
+    .filter(([,s]) => s.stores > 0)
+    .sort((a,b) => b[1].stores - a[1].stores);
+
+  if (!ranked.length){
+    el.innerHTML = '<div class="empty-note">Laut aktueller REWE-Sortimentsauswahl gibt es netzweit keine offenen Chancen bei den erfassten Standorten.</div>';
+    return;
+  }
+
+  el.innerHTML = ranked.map(([id, s]) => {
+    const pct = Math.round((s.stores / ok.length) * 100);
+    const avg = (s.totalCompetitors / s.stores).toFixed(1);
+    const cls = pct >= 60 ? '' : pct >= 30 ? 'mid' : 'saturated';
+    const tag = pct >= 60 ? 'Netzweite Priorität' : pct >= 30 ? 'Regionale Chance' : 'Vereinzelt';
+    return `<div class="rec-card ${cls}">
+      <div class="rec-head"><span>${ASSORTMENT_LABELS[id]}</span><span class="rec-tag">${tag}</span></div>
+      <p>An <strong>${s.stores} von ${ok.length}</strong> Standorten (${pct}%) ist das eine offene Chance —
+      im Schnitt <strong>${avg}</strong> Wettbewerber je betroffenem Standort führen diese Warengruppe bereits, REWE laut Auswahl nicht.</p>
+    </div>`;
+  }).join('');
+}
+
+function renderBatchResults(){
+  renderBatchStats();
+  renderBatchMap();
+  renderBatchTable();
+  renderNetworkRecommendation();
+  document.getElementById('batchResults').classList.add('show');
+}
+
+document.getElementById('exportExcelBatchBtn').addEventListener('click', () => {
+  const ok = batchResultsData.filter(r => !r.error);
+  if (!ok.length){ setStatus('Bitte zuerst eine Batch-Analyse ausführen.', true, 'batchStatus'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const overviewRows = batchResultsData.map(r => r.error
+    ? { 'Filiale': r.entry.name, 'Adresse': r.entry.address, 'Status': 'Fehler: ' + r.error }
+    : {
+        'Filiale': r.entry.name,
+        'Adresse (geocodiert)': r.center.label,
+        'Wettbewerber (unique)': groupByName(r.shops).length,
+        'Eigene REWE-Filialen (unique)': groupByName(r.ownStores).length,
+        'Top-Prioritäten': r.gapAnalysis.priority.slice(0,3).map(p=>ASSORTMENT_LABELS[p.id]||p.id).join(', '),
+        'Prioritäts-Score': r.score,
+        'Radius (km)': r.radiusKm,
+      });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overviewRows), 'Übersicht');
+
+  const netRows = [];
+  const stats = {};
+  Object.keys(ASSORTMENT_LABELS).forEach(id => { stats[id] = { stores: 0, totalCompetitors: 0 }; });
+  ok.forEach(r => r.gapAnalysis.priority.forEach(p => { stats[p.id].stores += 1; stats[p.id].totalCompetitors += p.count; }));
+  Object.entries(stats).filter(([,s])=>s.stores>0).sort((a,b)=>b[1].stores-a[1].stores).forEach(([id,s]) => {
+    netRows.push({
+      'Warengruppe': ASSORTMENT_LABELS[id],
+      'Betroffene Standorte': s.stores,
+      'Anteil Standorte (%)': Math.round((s.stores/ok.length)*100),
+      'Ø Wettbewerber je betroffenem Standort': (s.totalCompetitors/s.stores).toFixed(1),
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(netRows.length?netRows:[{Hinweis:'Keine netzweiten Chancen gefunden'}]), 'Netzweite Empfehlung');
+
+  ok.forEach((r, i) => {
+    const rows = groupByName(r.shops).sort((a,b)=>a.minDistance-b.minDistance).map(g => ({
+      'Entfernung (km)': g.minDistance.toFixed(1), 'Name': g.name, 'Betriebstyp': g.group,
+      'Geführte Sortimente': (g.assortments||[]).map(a=>ASSORTMENT_LABELS[a]||a).join(', '),
+    }));
+    let sheetName = (r.entry.name || ('Standort ' + (i+1))).replace(/[\[\]\*\/\\\?:]/g,'').slice(0,31) || ('Standort ' + (i+1));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length?rows:[{Hinweis:'Keine Wettbewerber im Radius'}]), sheetName);
+  });
+
+  XLSX.writeFile(wb, 'REWE-Nonfood-Batch-Analyse.xlsx');
+});
+
+document.getElementById('exportPdfBatchBtn').addEventListener('click', () => window.print());
 </script>
 
 </body>
