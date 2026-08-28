@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nonfood-Radar — Standort- &amp; Konkurrenzanalyse</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1f24;
+    --petrol:#0f3b3f;
+    --petrol-2:#155359;
+    --paper:#f3f0e6;
+    --paper-2:#ffffff;
+    --amber:#e08a2c;
+    --amber-2:#c96f16;
+    --line:#d8d2c0;
+    --ok:#2f7a4f;
+    --warn:#c94b2c;
+    --grid: repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(15,59,63,0.05) 27px, rgba(15,59,63,0.05) 28px);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:var(--grid);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:var(--petrol);
+    color:var(--paper);
+    padding:22px 28px 20px;
+    border-bottom:4px solid var(--amber);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  header h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    letter-spacing:0.5px;
+    font-size:26px;
+    margin:0;
+    text-transform:uppercase;
+  }
+  header h1 span{color:var(--amber);}
+  header .tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    opacity:0.75;
+    letter-spacing:0.5px;
+  }
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:26px 20px 60px;
+  }
+  .panel{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:2px;
+    box-shadow:0 1px 0 var(--line);
+  }
+  .search-row{
+    display:flex;
+    gap:10px;
+    padding:18px;
+    flex-wrap:wrap;
+    align-items:flex-end;
+  }
+  .field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:220px;}
+  .field label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.8px;
+    color:var(--petrol-2);
+  }
+  .field input, .field select{
+    border:1px solid var(--line);
+    background:var(--paper);
+    padding:10px 11px;
+    font-size:14px;
+    font-family:'Inter',sans-serif;
+    border-radius:2px;
+    color:var(--ink);
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--amber);outline-offset:1px;}
+  button.primary{
+    background:var(--amber);
+    color:var(--ink);
+    border:none;
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    font-size:14px;
+    padding:11px 22px;
+    border-radius:2px;
+    cursor:pointer;
+    transition:background 0.15s;
+  }
+  button.primary:hover{background:var(--amber-2);}
+  button.primary:disabled{background:#cbc3ab;cursor:wait;}
+  .status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    padding:0 18px 16px;
+    color:var(--petrol-2);
+    min-height:16px;
+  }
+  .status.error{color:var(--warn);}
+  section.results{margin-top:22px;display:none;}
+  section.results.show{display:block;}
+  .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:18px;}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr;}}
+  #map{height:420px;border-radius:2px;}
+  .stat-strip{
+    display:flex;
+    padding:16px 18px;
+    gap:22px;
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .stat{display:flex;flex-direction:column;}
+  .stat .n{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;color:var(--petrol);}
+  .stat .l{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;color:#7a7466;letter-spacing:0.5px;}
+  .panel-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    font-size:14px;
+    font-weight:600;
+    color:var(--petrol);
+    padding:14px 18px 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-title .idx{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    background:var(--petrol);
+    color:var(--paper);
+    padding:2px 6px;
+    border-radius:2px;
+  }
+  .cat-list{list-style:none;margin:0;padding:6px 18px 18px;}
+  .cat-list li{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .cat-list li:last-child{border-bottom:none;}
+  .cat-name{flex:1;font-size:13.5px;}
+  .cat-bar-wrap{width:120px;height:8px;background:var(--paper);border:1px solid var(--line);border-radius:3px;overflow:hidden;}
+  .cat-bar{height:100%;background:var(--petrol-2);}
+  .cat-count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    width:22px;
+    text-align:right;
+    color:var(--petrol);
+  }
+  .opportunity-badge{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    background:var(--ok);
+    color:#fff;
+    padding:2px 5px;
+    border-radius:2px;
+    letter-spacing:0.3px;
+  }
+  .opportunity-badge.mid{background:var(--amber-2);}
+  table.shops{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  table.shops th{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    text-align:left;
+    color:#7a7466;
+    border-bottom:2px solid var(--petrol);
+    padding:8px 10px;
+  }
+  table.shops td{
+    padding:9px 10px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  table.shops tr:hover td{background:#faf8f2;}
+  .pill{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    padding:1px 6px;
+    border-radius:10px;
+    margin:1px 3px 1px 0;
+  }
+  .pill.food{background:#fbe9df;border-color:#e8c3a8;color:var(--amber-2);}
+  .dist{font-family:'JetBrains Mono',monospace;color:#7a7466;font-size:12px;}
+  .empty-note{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    padding:20px 18px;
+    color:#7a7466;
+  }
+  footer{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 20px 40px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:#918a77;
+  }
+  .signature{
+    display:inline-block;
+    transform:rotate(-1deg);
+    border:1px solid var(--petrol);
+    padding:2px 8px;
+    margin-top:14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Nonfood<span>-Radar</span></h1>
+  <div class="tag">Standort- &amp; Sortiments-Analyse · 10&nbsp;km Radius</div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="search-row">
+      <div class="field" style="flex:2;min-width:280px;">
+        <label for="address">Adresse / Standort</label>
+        <input id="address" type="text" placeholder="z.B. Musterstraße 12, 12345 Musterstadt" />
+      </div>
+      <div class="field" style="max-width:130px;">
+        <label for="radius">Radius (km)</label>
+        <input id="radius" type="number" value="10" min="1" max="25" />
+      </div>
+      <button class="primary" id="searchBtn">Analysieren</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <section class="results" id="results">
+
+    <div class="panel stat-strip" id="statStrip"></div>
+
+    <div class="grid2" style="margin-top:18px;">
+      <div class="panel">
+        <div class="panel-title"><span class="idx">01</span> Karte</div>
+        <div id="map" style="margin:12px 18px 18px;border:1px solid var(--line);"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><span class="idx">02</span> Nonfood-Kategorien in der Umgebung</div>
+        <ul class="cat-list" id="catList"></ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="panel-title"><span class="idx">03</span> Chancen-Einschätzung — was sich lohnen könnte</div>
+      <div id="opportunityText" style="padding:6px 18px 18px;font-size:13.5px;line-height:1.6;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="idx">04</span> Gefundene Geschäfte (<span id="shopCount">0</span>)</div>
+      <div style="overflow-x:auto;">
+        <table class="shops" id="shopTable">
+          <thead>
+            <tr><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Entfernung</th></tr>
+          </thead>
+          <tbody id="shopTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer>
+  Datenquelle: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig.
+  Kategorisierung erfolgt heuristisch anhand von OSM-Tags und kann unvollständig sein.
+  <div class="signature">Sortiment ist, was der Nachbar nicht hat.</div>
+</footer>
+
+<script>
+// ---------- Kategorien-Mapping (OSM shop=* -> Nonfood-Gruppe) ----------
+const CATEGORY_MAP = {
+  chemist: "Drogerie / Kosmetik",
+  cosmetics: "Drogerie / Kosmetik",
+  perfumery: "Drogerie / Kosmetik",
+  hairdresser_supply: "Drogerie / Kosmetik",
+  doityourself: "Baumarkt / Haushalt",
+  hardware: "Baumarkt / Haushalt",
+  houseware: "Baumarkt / Haushalt",
+  paint: "Baumarkt / Haushalt",
+  electronics: "Elektronik",
+  mobile_phone: "Elektronik",
+  computer: "Elektronik",
+  clothes: "Textilien / Mode",
+  shoes: "Textilien / Mode",
+  fabric: "Textilien / Mode",
+  fashion_accessories: "Textilien / Mode",
+  toys: "Spielwaren",
+  books: "Bücher / Schreibwaren",
+  stationery: "Bücher / Schreibwaren",
+  pet: "Tierbedarf",
+  garden_centre: "Garten / Pflanzen",
+  florist: "Garten / Pflanzen",
+  sports: "Sport & Freizeit",
+  outdoor: "Sport & Freizeit",
+  bicycle: "Sport & Freizeit",
+  department_store: "Kaufhaus (Vollsortiment Nonfood)",
+  variety_store: "Kaufhaus (Vollsortiment Nonfood)",
+  general: "Kaufhaus (Vollsortiment Nonfood)",
+  optician: "Optik",
+  jewelry: "Schmuck / Uhren",
+  watches: "Schmuck / Uhren",
+  car_parts: "Auto- / Kfz-Zubehör",
+  car: "Auto- / Kfz-Zubehör",
+  furniture: "Möbel / Einrichtung",
+  interior_decoration: "Möbel / Einrichtung",
+  gift: "Geschenke / Deko",
+  variety: "Geschenke / Deko",
+  candles: "Geschenke / Deko",
+  bag: "Accessoires",
+  video_games: "Elektronik",
+  appliance: "Elektronik / Haushaltsgeräte",
+};
+
+// Food-orientierte Betriebstypen, die trotzdem als Nonfood-Konkurrenz gelten
+// (Aktionsware / Randsortiment) — wichtig für Lebensmitteleinzelhandel
+const FOOD_WITH_NONFOOD = {
+  supermarket: "Supermarkt (Nonfood-Aktionsware möglich)",
+  convenience: "Convenience (kleines Nonfood-Randsortiment)",
+  discount: "Discounter (Nonfood-Aktionsware typisch)",
+};
+
+function categorize(tags){
+  const shop = tags.shop;
+  if (CATEGORY_MAP[shop]) return { group: CATEGORY_MAP[shop], isFoodStore:false };
+  if (FOOD_WITH_NONFOOD[shop]) return { group: FOOD_WITH_NONFOOD[shop], isFoodStore:true };
+  return null;
+}
+
+// ---------- Hilfsfunktionen ----------
+function haversine(lat1, lon1, lat2, lon2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function setStatus(msg, isError){
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status' + (isError ? ' error' : '');
+}
+
+let map, markersLayer;
+
+async function geocode(address){
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=' + encodeURIComponent(address);
+  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+  if (!res.ok) throw new Error('Geocoding fehlgeschlagen (' + res.status + ')');
+  const data = await res.json();
+  if (!data.length) throw new Error('Adresse nicht gefunden. Bitte präzisieren (Straße, PLZ, Ort).');
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
+}
+
+async function overpassShops(lat, lon, radiusKm){
+  const radiusM = Math.round(radiusKm * 1000);
+  const query = `
+    [out:json][timeout:30];
+    (
+      node["shop"](around:${radiusM},${lat},${lon});
+      way["shop"](around:${radiusM},${lat},${lon});
+    );
+    out center tags;
+  `;
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query)
+  });
+  if (!res.ok) throw new Error('Overpass-Abfrage fehlgeschlagen (' + res.status + ')');
+  const data = await res.json();
+  return data.elements || [];
+}
+
+function renderStats(shops, nonfoodShops, catCounts, radiusKm){
+  const strip = document.getElementById('statStrip');
+  const catCount = Object.keys(catCounts).length;
+  strip.innerHTML = `
+    <div class="stat"><div class="n">${shops.length}</div><div class="l">Geschäfte gesamt</div></div>
+    <div class="stat"><div class="n">${nonfoodShops.length}</div><div class="l">mit Nonfood-Bezug</div></div>
+    <div class="stat"><div class="n">${catCount}</div><div class="l">Nonfood-Kategorien vertreten</div></div>
+    <div class="stat"><div class="n">${radiusKm}</div><div class="l">km Radius</div></div>
+  `;
+}
+
+function renderMap(center, shops){
+  if (!map){
+    map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      maxZoom: 19
+    }).addTo(map);
+    markersLayer = L.layerGroup().addTo(map);
+  }
+  markersLayer.clearLayers();
+  map.setView([center.lat, center.lon], 12);
+
+  L.marker([center.lat, center.lon], { title: 'Standort' })
+    .addTo(markersLayer)
+    .bindPopup('<b>Dein Standort</b>');
+
+  shops.forEach(s => {
+    const color = s.isFoodStore ? '#c96f16' : '#155359';
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius: 6, color: color, fillColor: color, fillOpacity: 0.75, weight: 1
+    }).addTo(markersLayer);
+    marker.bindPopup(`<b>${s.name}</b><br>${s.group}<br><span style="font-family:monospace;font-size:11px;">${s.distance.toFixed(1)} km</span>`);
+  });
+}
+
+function renderCategories(catCounts, totalNonfood){
+  const list = document.getElementById('catList');
+  list.innerHTML = '';
+  const entries = Object.entries(catCounts).sort((a,b) => b[1]-a[1]);
+  if (!entries.length){
+    list.innerHTML = '<li class="empty-note">Keine Nonfood-Geschäfte im Radius gefunden.</li>';
+    return;
+  }
+  const max = entries[0][1];
+  entries.forEach(([name, count]) => {
+    const li = document.createElement('li');
+    const pct = Math.max(6, (count / max) * 100);
+    let badge = '';
+    if (count <= 1) badge = '<span class="opportunity-badge">Große Lücke</span>';
+    else if (count <= 3) badge = '<span class="opportunity-badge mid">Chance</span>';
+    li.innerHTML = `
+      <span class="cat-name">${name}</span>
+      ${badge}
+      <span class="cat-bar-wrap"><span class="cat-bar" style="width:${pct}%"></span></span>
+      <span class="cat-count">${count}</span>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function renderOpportunities(catCounts, nonfoodShops){
+  const el = document.getElementById('opportunityText');
+  const allGroups = new Set([...Object.values(CATEGORY_MAP)]);
+  const present = new Set(Object.keys(catCounts));
+  const missing = [...allGroups].filter(g => !present.has(g));
+  const weak = Object.entries(catCounts).filter(([,c]) => c <= 2).map(([g]) => g);
+
+  let html = '';
+  if (missing.length){
+    html += `<p><strong>Nicht vertreten im Umkreis:</strong> ${missing.join(', ')}. Diese Segmente hat aktuell niemand im Radius besetzt — potenzielle Alleinstellung, falls Zielgruppe passt.</p>`;
+  }
+  if (weak.length){
+    html += `<p><strong>Schwach besetzt (max. 2 Anbieter):</strong> ${weak.join(', ')}. Hier reicht oft schon ein kleines, gezieltes Randsortiment, um sichtbar zu werden.</p>`;
+  }
+  const foodCompetitors = nonfoodShops.filter(s => s.isFoodStore).length;
+  if (foodCompetitors > 0){
+    html += `<p><strong>${foodCompetitors}</strong> Lebensmittel-Wettbewerber im Radius führen selbst schon Nonfood-Aktionsware — das ist dein direkter Vergleichsmaßstab für Kern-Randsortimente (Haushalt, Deko, Saison, Gartenartikel).</p>`;
+  }
+  if (!html){
+    html = '<p>Alle gängigen Nonfood-Segmente sind bereits gut vertreten — Differenzierung eher über Marke, Preis oder Sonderaktionen statt über neue Warengruppen.</p>';
+  }
+  el.innerHTML = html;
+}
+
+function renderTable(shops){
+  const body = document.getElementById('shopTableBody');
+  body.innerHTML = '';
+  document.getElementById('shopCount').textContent = shops.length;
+  const sorted = [...shops].sort((a,b) => a.distance - b.distance);
+  if (!sorted.length){
+    body.innerHTML = '<tr><td colspan="4" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
+    return;
+  }
+  sorted.forEach(s => {
+    const tr = document.createElement('tr');
+    const pillClass = s.isFoodStore ? 'pill food' : 'pill';
+    tr.innerHTML = `
+      <td>${s.name}</td>
+      <td>${s.shopType}</td>
+      <td><span class="${pillClass}">${s.group}</span></td>
+      <td class="dist">${s.distance.toFixed(1)} km</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function runAnalysis(){
+  const address = document.getElementById('address').value.trim();
+  const radiusKm = parseFloat(document.getElementById('radius').value) || 10;
+  if (!address){
+    setStatus('Bitte eine Adresse eingeben.', true);
+    return;
+  }
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  setStatus('Adresse wird ermittelt …');
+
+  try {
+    const center = await geocode(address);
+    setStatus(`Standort gefunden: ${center.label} — suche Geschäfte im ${radiusKm}-km-Radius …`);
+
+    const elements = await overpassShops(center.lat, center.lon, radiusKm);
+
+    const shops = [];
+    elements.forEach(el => {
+      const tags = el.tags || {};
+      const lat = el.lat || (el.center && el.center.lat);
+      const lon = el.lon || (el.center && el.center.lon);
+      if (lat == null || lon == null) return;
+      const cat = categorize(tags);
+      if (!cat) return;
+      const distance = haversine(center.lat, center.lon, lat, lon);
+      if (distance > radiusKm) return;
+      shops.push({
+        name: tags.name || tags.brand || 'Unbenannt',
+        shopType: tags.shop,
+        group: cat.group,
+        isFoodStore: cat.isFoodStore,
+        lat, lon, distance
+      });
+    });
+
+    const nonfoodShops = shops; // alle bereits kategorisiert = nonfood-relevant
+    const catCounts = {};
+    nonfoodShops.forEach(s => {
+      catCounts[s.group] = (catCounts[s.group] || 0) + 1;
+    });
+
+    renderStats(elements, nonfoodShops, catCounts, radiusKm);
+    renderMap(center, nonfoodShops);
+    renderCategories(catCounts, nonfoodShops.length);
+    renderOpportunities(catCounts, nonfoodShops);
+    renderTable(nonfoodShops);
+
+    document.getElementById('results').classList.add('show');
+    setStatus(`Fertig — ${nonfoodShops.length} Nonfood-relevante Geschäfte gefunden.`);
+  } catch (err) {
+    console.error(err);
+    setStatus('Fehler: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('searchBtn').addEventListener('click', runAnalysis);
+document.getElementById('address').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runAnalysis();
+});
+</script>
+
+</body>
+</html>
