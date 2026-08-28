@@ -119,6 +119,61 @@
   .status.error{color:var(--warn);}
   section.results{margin-top:22px;display:none;}
   section.results.show{display:block;}
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    margin:18px 0 14px;
+    border-bottom:2px solid var(--petrol);
+  }
+  .tab-btn{
+    background:transparent;
+    border:none;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    font-size:14px;
+    font-weight:600;
+    color:#7a7466;
+    padding:10px 16px;
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    margin-bottom:-2px;
+    transition:color 0.15s;
+  }
+  .tab-btn:hover{color:var(--petrol-2);}
+  .tab-btn.active{color:var(--petrol);border-bottom-color:var(--amber);}
+  .assort-group{margin-bottom:16px;}
+  .assort-group h4{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    font-size:13px;
+    letter-spacing:0.4px;
+    color:var(--petrol);
+    margin:0 0 6px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .assort-group h4 .count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    padding:1px 6px;
+    border-radius:2px;
+    color:#7a7466;
+  }
+  .assort-group ul{list-style:none;margin:0;padding:0;}
+  .assort-group li{
+    font-size:13px;
+    padding:4px 0;
+    border-bottom:1px dashed var(--line);
+    display:flex;
+    justify-content:space-between;
+  }
+  .assort-group li:last-child{border-bottom:none;}
+  .assort-group li .dname{color:var(--ink);}
+  .assort-group li .ddist{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7a7466;}
   .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:18px;}
   @media(max-width:860px){.grid2{grid-template-columns:1fr;}}
   #map{height:420px;border-radius:2px;}
@@ -267,31 +322,44 @@
 
     <div class="panel stat-strip" id="statStrip"></div>
 
-    <div class="grid2" style="margin-top:18px;">
-      <div class="panel">
+    <nav class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="markets">Märkte im Umkreis</button>
+      <button class="tab-btn" data-tab="analysis">Analyse</button>
+    </nav>
+
+    <div class="tab-panel" id="tab-markets">
+      <div class="panel" style="margin-bottom:18px;">
         <div class="panel-title"><span class="idx">01</span> Karte</div>
         <div id="map" style="margin:12px 18px 18px;border:1px solid var(--line);"></div>
       </div>
+
       <div class="panel">
-        <div class="panel-title"><span class="idx">02</span> Nonfood-Kategorien in der Umgebung</div>
-        <ul class="cat-list" id="catList"></ul>
+        <div class="panel-title"><span class="idx">02</span> Gefundene Märkte (<span id="shopCount">0</span>) — sortiert nach Entfernung</div>
+        <div style="overflow-x:auto;">
+          <table class="shops" id="shopTable">
+            <thead>
+              <tr><th>Entfernung</th><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th></tr>
+            </thead>
+            <tbody id="shopTableBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <div class="panel" style="margin-bottom:18px;">
-      <div class="panel-title"><span class="idx">03</span> Chancen-Einschätzung — was sich lohnen könnte</div>
-      <div id="opportunityText" style="padding:6px 18px 18px;font-size:13.5px;line-height:1.6;"></div>
-    </div>
+    <div class="tab-panel" id="tab-analysis" style="display:none;">
+      <div class="panel" style="margin-bottom:18px;">
+        <div class="panel-title"><span class="idx">01</span> Nonfood-Kategorien in der Umgebung</div>
+        <ul class="cat-list" id="catList"></ul>
+      </div>
 
-    <div class="panel">
-      <div class="panel-title"><span class="idx">04</span> Gefundene Geschäfte (<span id="shopCount">0</span>)</div>
-      <div style="overflow-x:auto;">
-        <table class="shops" id="shopTable">
-          <thead>
-            <tr><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Entfernung</th></tr>
-          </thead>
-          <tbody id="shopTableBody"></tbody>
-        </table>
+      <div class="panel" style="margin-bottom:18px;">
+        <div class="panel-title"><span class="idx">02</span> Chancen-Einschätzung — was sich lohnen könnte</div>
+        <div id="opportunityText" style="padding:6px 18px 18px;font-size:13.5px;line-height:1.6;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span class="idx">03</span> Sortiment der Wettbewerber — wer führt was</div>
+        <div id="assortmentBreakdown" style="padding:6px 18px 18px;"></div>
       </div>
     </div>
 
@@ -390,23 +458,46 @@ async function geocode(address){
   return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
 }
 
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
 async function overpassShops(lat, lon, radiusKm){
   const radiusM = Math.round(radiusKm * 1000);
   const query = `
-    [out:json][timeout:30];
+    [out:json][timeout:40];
     (
       node["shop"](around:${radiusM},${lat},${lon});
       way["shop"](around:${radiusM},${lat},${lon});
     );
     out center tags;
   `;
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: 'data=' + encodeURIComponent(query)
-  });
-  if (!res.ok) throw new Error('Overpass-Abfrage fehlgeschlagen (' + res.status + ')');
-  const data = await res.json();
-  return data.elements || [];
+
+  let lastError;
+  for (const mirror of OVERPASS_MIRRORS){
+    try {
+      setStatus('Frage Geschäftsdaten ab (' + mirror.replace('https://','').split('/')[0] + ') …');
+      const res = await fetch(mirror, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query)
+      });
+      if (!res.ok){
+        if (res.status === 429 || res.status === 504){
+          lastError = new Error('Server ausgelastet (' + res.status + ')');
+          continue; // nächsten Mirror versuchen
+        }
+        throw new Error('Overpass-Abfrage fehlgeschlagen (' + res.status + ')');
+      }
+      const data = await res.json();
+      return data.elements || [];
+    } catch (err){
+      lastError = err;
+      continue;
+    }
+  }
+  throw new Error('Alle Overpass-Server sind gerade nicht erreichbar. Bitte in 1–2 Minuten erneut versuchen. (' + (lastError ? lastError.message : '') + ')');
 }
 
 function renderStats(shops, nonfoodShops, catCounts, radiusKm){
@@ -507,14 +598,51 @@ function renderTable(shops){
     const tr = document.createElement('tr');
     const pillClass = s.isFoodStore ? 'pill food' : 'pill';
     tr.innerHTML = `
+      <td class="dist">${s.distance.toFixed(1)} km</td>
       <td>${s.name}</td>
       <td>${s.shopType}</td>
       <td><span class="${pillClass}">${s.group}</span></td>
-      <td class="dist">${s.distance.toFixed(1)} km</td>
     `;
     body.appendChild(tr);
   });
 }
+
+function renderAssortmentBreakdown(shops){
+  const el = document.getElementById('assortmentBreakdown');
+  el.innerHTML = '';
+  if (!shops.length){
+    el.innerHTML = '<div class="empty-note">Keine Daten vorhanden.</div>';
+    return;
+  }
+  const byGroup = {};
+  shops.forEach(s => {
+    if (!byGroup[s.group]) byGroup[s.group] = [];
+    byGroup[s.group].push(s);
+  });
+  const entries = Object.entries(byGroup).sort((a,b) => b[1].length - a[1].length);
+  entries.forEach(([group, list]) => {
+    list.sort((a,b) => a.distance - b.distance);
+    const div = document.createElement('div');
+    div.className = 'assort-group';
+    const items = list.map(s => `
+      <li><span class="dname">${s.name}</span><span class="ddist">${s.distance.toFixed(1)} km</span></li>
+    `).join('');
+    div.innerHTML = `
+      <h4>${group} <span class="count">${list.length}</span></h4>
+      <ul>${items}</ul>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function switchTab(tabName){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+  document.getElementById('tab-markets').style.display = tabName === 'markets' ? '' : 'none';
+  document.getElementById('tab-analysis').style.display = tabName === 'analysis' ? '' : 'none';
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
 
 async function runAnalysis(){
   const address = document.getElementById('address').value.trim();
@@ -563,8 +691,10 @@ async function runAnalysis(){
     renderCategories(catCounts, nonfoodShops.length);
     renderOpportunities(catCounts, nonfoodShops);
     renderTable(nonfoodShops);
+    renderAssortmentBreakdown(nonfoodShops);
 
     document.getElementById('results').classList.add('show');
+    switchTab('markets');
     setStatus(`Fertig — ${nonfoodShops.length} Nonfood-relevante Geschäfte gefunden.`);
   } catch (err) {
     console.error(err);
