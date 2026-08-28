@@ -407,6 +407,17 @@
   }
   .assort-chip:hover{border-color:var(--petrol-2);}
   .assort-chip.active{background:var(--amber);border-color:var(--amber-2);color:var(--ink);}
+  .check-link{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--petrol-2);
+    text-decoration:none;
+    border-bottom:1px dotted var(--petrol-2);
+    margin-right:8px;
+    white-space:nowrap;
+  }
+  .check-link:hover{color:var(--amber-2);border-bottom-color:var(--amber-2);}
   .dist{font-family:'JetBrains Mono',monospace;color:#7a7466;font-size:12px;}
   .empty-note{
     font-family:'JetBrains Mono',monospace;
@@ -484,7 +495,7 @@
         <div style="overflow-x:auto;">
           <table class="shops" id="shopTable">
             <thead>
-              <tr><th>Entfernung</th><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Geführte Sortimente</th></tr>
+              <tr><th>Entfernung</th><th>Name</th><th>Typ</th><th>Nonfood-Angebot</th><th>Geführte Sortimente</th><th>Noch vorhanden?</th></tr>
             </thead>
             <tbody id="shopTableBody"></tbody>
           </table>
@@ -532,8 +543,10 @@
 </main>
 
 <footer>
-  Datenquelle: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig.
+  Datenquelle Standorte: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig.
   Kategorisierung erfolgt heuristisch anhand von OSM-Tags und kann unvollständig sein.
+  Sortimentsangaben je Kette basieren auf recherchierten Angaben der jeweiligen Unternehmens-/Markenseiten und sind als typisches Sortiment, nicht als Live-Bestand einer einzelnen Filiale zu verstehen.
+  Der "Noch vorhanden?"-Link öffnet Google Maps bzw. die Google-Suche zur manuellen Prüfung — eine automatische Live-Prüfung ist im Browser aus technischen Gründen nicht möglich.
   <div class="signature">Sortiment ist, was der Nachbar nicht hat.</div>
 </footer>
 
@@ -617,41 +630,50 @@ function categorize(tags){
 }
 
 // ---------- Sortiments-Zuordnung (welche Warengruppen führt der Markt) ----------
-// OSM liefert i.d.R. keine Detail-Tags zu einzelnen Warengruppen im Laden —
-// die Zuordnung erfolgt daher heuristisch über bekannte Markennamen und,
-// als Fallback, über die zugeordnete Nonfood-Gruppe.
+// Datenbasis: Recherche auf den offiziellen Webseiten/Unternehmensseiten der jeweiligen
+// Ketten (Stand: Recherche vom Sommer 2026). OSM selbst liefert keine Detail-Tags zu
+// einzelnen Warengruppen im Laden — für bekannte Ketten wird daher das recherchierte
+// reale Sortiment hinterlegt, für unbekannte/generische Läden ein Fallback je Nonfood-Gruppe.
 const ASSORTMENT_LABELS = {
-  schreibwaren: "Schreibwaren",
+  schreibwaren: "Schreibwaren & Büro",
   haushaltswaren: "Haushaltswaren",
-  elektro: "Elektro",
+  elektro: "Elektro & Multimedia",
   spielwaren: "Spielwaren",
   deko: "Deko & Geschenke",
+  party: "Party & Saison",
   drogerie: "Drogerie & Kosmetik",
-  garten: "Gartenartikel",
-  textilien: "Textilien",
+  garten: "Garten & Outdoor",
+  textilien: "Textilien & Mode",
   bau: "Bau & Werkzeug",
+  tierbedarf: "Tierbedarf",
+  buecher: "Bücher & Medien",
+  baby: "Baby & Kind",
 };
 
+// Recherchequellen (Auszug): action.com, tedi.com, de.wikipedia.org/wiki/TEDi_(retailer),
+// woolworth.de + de.wikipedia.org/wiki/Woolworth_Deutschland, mueller.de, obi.de,
+// rossmann.de, unternehmen.rossmann.de.
 const BRAND_ASSORTMENTS = [
-  { pattern: /action\b/i, list: ["haushaltswaren","deko","spielwaren","schreibwaren","drogerie","garten"] },
-  { pattern: /tedi/i, list: ["haushaltswaren","deko","spielwaren","schreibwaren","garten"] },
-  { pattern: /nanu[- ]?nana/i, list: ["deko","schreibwaren","haushaltswaren"] },
-  { pattern: /mäc[- ]geiz/i, list: ["haushaltswaren","deko","drogerie","schreibwaren"] },
-  { pattern: /woolworth/i, list: ["haushaltswaren","textilien","spielwaren","schreibwaren","deko"] },
-  { pattern: /kodi\b/i, list: ["haushaltswaren","deko","spielwaren","schreibwaren","garten"] },
-  { pattern: /dm[- ]?drogerie|rossmann|müller\b/i, list: ["drogerie","schreibwaren","spielwaren","haushaltswaren"] },
+  { pattern: /action\b/i, list: ["deko","bau","spielwaren","schreibwaren","elektro","haushaltswaren","garten","drogerie","tierbedarf","textilien","party"] },
+  { pattern: /tedi/i, list: ["party","deko","bau","schreibwaren","haushaltswaren","drogerie","textilien","garten","tierbedarf","spielwaren","elektro"] },
+  { pattern: /nanu[- ]?nana/i, list: ["deko","schreibwaren","haushaltswaren","party"] },
+  { pattern: /mäc[- ]geiz/i, list: ["haushaltswaren","deko","drogerie","schreibwaren","party"] },
+  { pattern: /woolworth/i, list: ["textilien","haushaltswaren","deko","drogerie","schreibwaren","spielwaren","elektro","tierbedarf","party"] },
+  { pattern: /kodi\b/i, list: ["haushaltswaren","deko","spielwaren","schreibwaren","garten","party"] },
+  { pattern: /dm[- ]?drogerie|rossmann/i, list: ["drogerie","baby","tierbedarf","haushaltswaren","schreibwaren","deko","buecher"] },
+  { pattern: /müller\b/i, list: ["drogerie","spielwaren","elektro","buecher","haushaltswaren","schreibwaren","textilien","deko","baby"] },
   { pattern: /obi\b|hornbach|bauhaus|toom\b|hagebau/i, list: ["bau","garten","elektro","haushaltswaren"] },
   { pattern: /media ?markt|saturn|expert\b|euronics/i, list: ["elektro"] },
-  { pattern: /aldi|lidl|kaufland|rewe|edeka|penny|netto|real\b/i, list: ["haushaltswaren","garten","elektro","spielwaren"] },
+  { pattern: /aldi|lidl|kaufland|rewe|edeka|penny|netto|real\b/i, list: ["haushaltswaren","garten","elektro","spielwaren","deko"] },
 ];
 
 // Fallback je Nonfood-Gruppe, falls kein konkreter Markenname erkannt wurde.
 const GROUP_ASSORTMENT_FALLBACK = {
-  "Drogeriemarkt": ["drogerie","schreibwaren"],
+  "Drogeriemarkt": ["drogerie","schreibwaren","baby"],
   "Baumarkt": ["bau","garten","elektro"],
   "Elektromarkt": ["elektro"],
   "Kaufhaus": ["textilien","haushaltswaren","deko","schreibwaren"],
-  "Sonderposten / Nonfood-Discounter": ["haushaltswaren","deko","spielwaren","schreibwaren"],
+  "Sonderposten / Nonfood-Discounter": ["haushaltswaren","deko","spielwaren","schreibwaren","party"],
   "Supermarkt (Nonfood-Aktionsware)": ["haushaltswaren","garten","spielwaren"],
   "Discounter (Nonfood-Aktionsware)": ["haushaltswaren","garten","elektro"],
 };
@@ -665,6 +687,12 @@ function getAssortments(name, group){
 function renderAssortPills(assortments){
   if (!assortments || !assortments.length) return '<span class="empty-note" style="padding:0;">–</span>';
   return '<div class="assort-pills">' + assortments.map(a => `<span class="pill assort">${ASSORTMENT_LABELS[a] || a}</span>`).join('') + '</div>';
+}
+
+function renderCheckLink(name, lat, lon, addressLabel){
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name)}/@${lat},${lon},18z`;
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' ' + (addressLabel || '') + ' geöffnet Öffnungszeiten')}`;
+  return `<a class="check-link" href="${mapsUrl}" target="_blank" rel="noopener" title="Auf Google Maps prüfen, ob der Standort noch existiert">Karte ↗</a><a class="check-link" href="${searchUrl}" target="_blank" rel="noopener" title="Per Google-Suche prüfen, ob der Markt noch geöffnet ist">Suche ↗</a>`;
 }
 
 // ---------- Hilfsfunktionen ----------
@@ -922,7 +950,7 @@ function renderTable(shops){
   document.getElementById('shopCount').textContent = shops.length;
   const grouped = groupByName(shops).sort((a,b) => a.minDistance - b.minDistance);
   if (!grouped.length){
-    body.innerHTML = '<tr><td colspan="5" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">Keine Geschäfte mit Shop-Tag im Radius gefunden.</td></tr>';
     return;
   }
   grouped.forEach(g => {
@@ -932,12 +960,14 @@ function renderTable(shops){
     const countBadge = g.count > 1
       ? `<span class="dup-badge" data-target="${rowId}">×${g.count} <span class="caret">▾</span></span>`
       : '';
+    const addressLabel = currentCenter ? currentCenter.label : '';
     tr.innerHTML = `
       <td class="dist">${g.minDistance.toFixed(1)} km</td>
       <td>${g.name} ${countBadge}</td>
       <td>${g.shopType}</td>
       <td><span class="${pillClass}">${g.group}</span></td>
       <td>${renderAssortPills(g.assortments)}</td>
+      <td>${renderCheckLink(g.name, g.instances[0].lat, g.instances[0].lon, addressLabel)}</td>
     `;
     body.appendChild(tr);
 
@@ -947,7 +977,7 @@ function renderTable(shops){
       sub.id = rowId;
       sub.style.display = 'none';
       const items = g.instances.map(inst => `${inst.distance.toFixed(1)} km`).join(' · ');
-      sub.innerHTML = `<td></td><td colspan="4" class="sub-detail">Standorte: ${items}</td>`;
+      sub.innerHTML = `<td></td><td colspan="5" class="sub-detail">Standorte: ${items}</td>`;
       body.appendChild(sub);
     }
   });
