@@ -418,6 +418,68 @@
     white-space:nowrap;
   }
   .check-link:hover{color:var(--amber-2);border-bottom-color:var(--amber-2);}
+
+  .settings-panel{
+    margin:0 0 22px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--card);
+  }
+  .settings-panel summary{
+    cursor:pointer;
+    padding:12px 18px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    color:var(--petrol-2);
+    list-style:none;
+  }
+  .settings-panel summary::-webkit-details-marker{display:none;}
+  .settings-body{padding:0 18px 16px;display:flex;flex-direction:column;gap:10px;}
+  .settings-note{
+    font-size:11.5px;
+    color:#7a7466;
+    line-height:1.5;
+    max-width:640px;
+  }
+
+  .live-status{display:inline-block;margin-top:5px;}
+  .live-check-btn{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--petrol-2);
+    padding:3px 8px;
+    border-radius:10px;
+    cursor:pointer;
+  }
+  .live-check-btn:hover{border-color:var(--petrol-2);}
+  .live-badge{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    padding:3px 8px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    white-space:nowrap;
+  }
+  .live-badge.ok{background:#e9f3ea;border-color:#bcdcc0;color:#2f6b34;}
+  .live-badge.warn{background:#fbeedb;border-color:#e8c98f;color:var(--amber-2);}
+  .live-badge.closed{background:#f9e3e1;border-color:#e5b3ae;color:#a4372f;}
+  .live-badge.unknown{background:var(--paper);border-color:var(--line);color:#7a7466;}
+  .live-badge.checking{background:var(--paper);border-color:var(--line);color:#7a7466;}
+
+  .secondary-btn{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--petrol-2);
+    padding:6px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    margin-left:12px;
+  }
+  .secondary-btn:hover{border-color:var(--petrol-2);}
   .dist{font-family:'JetBrains Mono',monospace;color:#7a7466;font-size:12px;}
   .empty-note{
     font-family:'JetBrains Mono',monospace;
@@ -465,6 +527,30 @@
       <button class="primary" id="searchBtn">Analysieren</button>
     </div>
     <div class="status" id="status"></div>
+
+    <details class="settings-panel">
+      <summary>⚙ Optional: Zusätzlicher Live-Status via eigenem Cloudflare Worker (kostenpflichtig bei Google)</summary>
+      <div class="settings-body">
+        <div class="settings-note" style="margin-bottom:4px;">
+          Standardmäßig zeigt die App zu jedem Markt kostenlos an, wie aktuell der zugrunde liegende OpenStreetMap-Eintrag ist (Ampel-Badge). Das reicht in den meisten Fällen als Hinweis. Wer zusätzlich einen "harten" Live-Status direkt von Google abfragen möchte, kann optional einen eigenen Cloudflare Worker mit Google-API-Key hinterlegen (siehe mitgelieferte cloudflare-worker.js) — das verursacht dann geringe Kosten bei Google.
+        </div>
+        <div class="search-row" style="padding:0;">
+          <div class="field">
+            <label for="workerUrl">Worker-URL</label>
+            <input id="workerUrl" type="text" placeholder="https://dein-worker.deinname.workers.dev" />
+          </div>
+          <div class="field">
+            <label for="workerToken">Zugriffs-Token</label>
+            <input id="workerToken" type="text" placeholder="dein-geheimes-token" />
+          </div>
+          <button class="primary" id="saveSettingsBtn" type="button">Speichern</button>
+        </div>
+        <div class="settings-note">
+          Wird nur lokal in diesem Browser gespeichert (localStorage) — nie an Anthropic/Claude oder sonst wen übertragen.
+          Ohne Eintrag bleibt nur der "Live-Status via Worker"-Button inaktiv, alles andere funktioniert normal.
+        </div>
+      </div>
+    </details>
   </div>
 
   <section class="results" id="results">
@@ -490,7 +576,9 @@
       </div>
 
       <div class="panel">
-        <div class="panel-title"><span class="idx">02</span> Gefundene Märkte (<span id="shopCount">0</span>) — sortiert nach Entfernung</div>
+        <div class="panel-title"><span class="idx">02</span> Gefundene Märkte (<span id="shopCount">0</span>) — sortiert nach Entfernung
+          <button class="secondary-btn" id="checkAllBtn" type="button">Alle live prüfen</button>
+        </div>
         <div class="assort-filter" id="assortFilter"></div>
         <div style="overflow-x:auto;">
           <table class="shops" id="shopTable">
@@ -546,7 +634,8 @@
   Datenquelle Standorte: OpenStreetMap (Overpass API &amp; Nominatim) — keine Anmeldung, kein API-Key nötig.
   Kategorisierung erfolgt heuristisch anhand von OSM-Tags und kann unvollständig sein.
   Sortimentsangaben je Kette basieren auf recherchierten Angaben der jeweiligen Unternehmens-/Markenseiten und sind als typisches Sortiment, nicht als Live-Bestand einer einzelnen Filiale zu verstehen.
-  Der "Noch vorhanden?"-Link öffnet Google Maps bzw. die Google-Suche zur manuellen Prüfung — eine automatische Live-Prüfung ist im Browser aus technischen Gründen nicht möglich.
+  Der "Noch vorhanden?"-Bereich zeigt kostenlos an, wie aktuell der jeweilige OpenStreetMap-Eintrag zuletzt bearbeitet wurde (Ampel-Badge) — ein starker Hinweis, aber keine hundertprozentige Garantie. Zusätzlich gibt es Direkt-Links zu Google Maps/Suche zur manuellen Prüfung.
+  Optional (nicht kostenlos) lässt sich ein eigener Cloudflare Worker mit Google-API-Key hinterlegen (siehe cloudflare-worker.js) für einen zusätzlichen, direkten Live-Status von Google.
   <div class="signature">Sortiment ist, was der Nachbar nicht hat.</div>
 </footer>
 
@@ -689,10 +778,101 @@ function renderAssortPills(assortments){
   return '<div class="assort-pills">' + assortments.map(a => `<span class="pill assort">${ASSORTMENT_LABELS[a] || a}</span>`).join('') + '</div>';
 }
 
-function renderCheckLink(name, lat, lon, addressLabel){
+function getFreshnessInfo(timestampStr){
+  if (!timestampStr) return { cls: 'unknown', label: '❓ Kein Bearbeitungsdatum in OSM' };
+  const edited = new Date(timestampStr);
+  const months = (Date.now() - edited.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+  let ageLabel;
+  if (months < 1) ageLabel = 'vor < 1 Monat';
+  else if (months < 12) ageLabel = `vor ${Math.round(months)} Monat(en)`;
+  else ageLabel = `vor ${(months / 12).toFixed(1)} Jahren`;
+
+  if (months <= 6) return { cls: 'ok', label: `🟢 OSM-Eintrag aktuell (${ageLabel})` };
+  if (months <= 24) return { cls: 'warn', label: `🟡 OSM-Eintrag älter (${ageLabel}) – ggf. prüfen` };
+  return { cls: 'closed', label: `🔴 OSM-Eintrag alt (${ageLabel}) – manuell prüfen!` };
+}
+
+function renderFreshnessBadge(timestampStr){
+  const info = getFreshnessInfo(timestampStr);
+  const title = timestampStr ? ` title="Zuletzt in OpenStreetMap bearbeitet: ${new Date(timestampStr).toLocaleDateString('de-DE')}"` : '';
+  return `<span class="live-badge ${info.cls}"${title}>${info.label}</span>`;
+}
+
+function escapeAttr(str){
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderCheckLink(name, lat, lon, addressLabel, rowId, lastEdited){
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name)}/@${lat},${lon},18z`;
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' ' + (addressLabel || '') + ' geöffnet Öffnungszeiten')}`;
-  return `<a class="check-link" href="${mapsUrl}" target="_blank" rel="noopener" title="Auf Google Maps prüfen, ob der Standort noch existiert">Karte ↗</a><a class="check-link" href="${searchUrl}" target="_blank" rel="noopener" title="Per Google-Suche prüfen, ob der Markt noch geöffnet ist">Suche ↗</a>`;
+  return `<a class="check-link" href="${mapsUrl}" target="_blank" rel="noopener" title="Auf Google Maps prüfen, ob der Standort noch existiert">Karte ↗</a><a class="check-link" href="${searchUrl}" target="_blank" rel="noopener" title="Per Google-Suche prüfen, ob der Markt noch geöffnet ist">Suche ↗</a>
+  <div class="live-status">${renderFreshnessBadge(lastEdited)}</div>
+  <div class="live-status" id="live-${rowId}">
+    <button class="live-check-btn" type="button" data-name="${escapeAttr(name)}" data-lat="${lat}" data-lon="${lon}" data-target="live-${rowId}">Live-Status via Worker (optional)</button>
+  </div>`;
+}
+
+function renderLiveBadge(data){
+  const map = {
+    OPERATIONAL: { cls: 'ok', label: '🟢 Geöffnet' },
+    CLOSED_TEMPORARILY: { cls: 'warn', label: '🟡 Temporär geschlossen' },
+    CLOSED_PERMANENTLY: { cls: 'closed', label: '🔴 Dauerhaft geschlossen' },
+    NOT_FOUND: { cls: 'unknown', label: '❓ Nicht gefunden' },
+    UNKNOWN: { cls: 'unknown', label: '❓ Unbekannt' },
+  };
+  const info = map[data.status] || map.UNKNOWN;
+  const title = data.matchedName ? ` title="Gefunden als: ${escapeAttr(data.matchedName)}"` : '';
+  return `<span class="live-badge ${info.cls}"${title}>${info.label}</span>`;
+}
+
+async function runLiveCheck(btn){
+  const target = document.getElementById(btn.dataset.target);
+  const name = btn.dataset.name, lat = btn.dataset.lat, lon = btn.dataset.lon;
+  const workerUrl = localStorage.getItem('nfr_worker_url');
+  const token = localStorage.getItem('nfr_worker_token');
+  if (!workerUrl){
+    target.innerHTML = '<span class="live-badge unknown">Worker-URL fehlt (siehe Einstellungen oben)</span>';
+    return;
+  }
+  target.innerHTML = '<span class="live-badge checking">Prüfe …</span>';
+  try {
+    const url = new URL(workerUrl);
+    url.searchParams.set('name', name);
+    url.searchParams.set('lat', lat);
+    url.searchParams.set('lng', lon);
+    if (token) url.searchParams.set('token', token);
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    if (data.error){
+      target.innerHTML = `<span class="live-badge unknown" title="${escapeAttr(data.error)}">❓ Fehler</span>`;
+      return;
+    }
+    target.innerHTML = renderLiveBadge(data);
+  } catch (err){
+    target.innerHTML = `<span class="live-badge unknown" title="${escapeAttr(err.message)}">❓ Netzwerkfehler</span>`;
+  }
+}
+
+function wireLiveCheckButtons(){
+  document.querySelectorAll('.live-check-btn').forEach(btn => {
+    btn.addEventListener('click', () => runLiveCheck(btn));
+  });
+}
+
+async function checkAllLiveStatuses(){
+  const workerUrl = localStorage.getItem('nfr_worker_url');
+  if (!workerUrl){
+    setStatus('Bitte zuerst eine Worker-URL unter "Live-Status-Einstellungen" speichern.', true);
+    return;
+  }
+  const btns = Array.from(document.querySelectorAll('.live-check-btn'));
+  if (!btns.length) return;
+  const ok = confirm(`Das prüft ${btns.length} Märkte einzeln über die Google Places API und verursacht dabei geringe Kosten (ca. 0,017 $ je Markt, insgesamt ca. ${(btns.length*0.017).toFixed(2)} $). Fortfahren?`);
+  if (!ok) return;
+  for (const btn of btns){
+    await runLiveCheck(btn);
+    await new Promise(r => setTimeout(r, 150));
+  }
 }
 
 // ---------- Hilfsfunktionen ----------
@@ -735,7 +915,7 @@ async function overpassShops(lat, lon, radiusKm){
       node["shop"](around:${radiusM},${lat},${lon});
       way["shop"](around:${radiusM},${lat},${lon});
     );
-    out center tags;
+    out center meta;
   `;
 
   let lastError;
@@ -967,7 +1147,7 @@ function renderTable(shops){
       <td>${g.shopType}</td>
       <td><span class="${pillClass}">${g.group}</span></td>
       <td>${renderAssortPills(g.assortments)}</td>
-      <td>${renderCheckLink(g.name, g.instances[0].lat, g.instances[0].lon, addressLabel)}</td>
+      <td>${renderCheckLink(g.name, g.instances[0].lat, g.instances[0].lon, addressLabel, rowId, g.instances[0].lastEdited)}</td>
     `;
     body.appendChild(tr);
 
@@ -981,6 +1161,7 @@ function renderTable(shops){
       body.appendChild(sub);
     }
   });
+  wireLiveCheckButtons();
 
   body.querySelectorAll('.dup-badge').forEach(badge => {
     badge.addEventListener('click', () => {
@@ -1128,6 +1309,7 @@ async function runAnalysis(){
         group: cat.group,
         isFoodStore: cat.isFoodStore,
         assortments: getAssortments(shopName, cat.group),
+        lastEdited: el.timestamp || null,
         lat, lon, distance
       });
     });
@@ -1167,6 +1349,16 @@ document.getElementById('searchBtn').addEventListener('click', runAnalysis);
 document.getElementById('address').addEventListener('keydown', e => {
   if (e.key === 'Enter') runAnalysis();
 });
+
+// ---------- Live-Status-Einstellungen (Cloudflare Worker) ----------
+document.getElementById('workerUrl').value = localStorage.getItem('nfr_worker_url') || '';
+document.getElementById('workerToken').value = localStorage.getItem('nfr_worker_token') || '';
+document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+  localStorage.setItem('nfr_worker_url', document.getElementById('workerUrl').value.trim());
+  localStorage.setItem('nfr_worker_token', document.getElementById('workerToken').value.trim());
+  setStatus('Live-Status-Einstellungen gespeichert.');
+});
+document.getElementById('checkAllBtn').addEventListener('click', checkAllLiveStatuses);
 </script>
 
 </body>
