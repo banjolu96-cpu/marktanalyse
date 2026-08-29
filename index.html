@@ -535,7 +535,8 @@
   .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
 
   .live-status{display:inline-block;margin-top:5px;}
-  .live-check-btn{
+  .detect-slot:empty{display:none;}
+  .live-check-btn, .webcheck-btn{
     font-family:'JetBrains Mono',monospace;
     font-size:10.5px;
     background:var(--paper);
@@ -545,7 +546,7 @@
     border-radius:10px;
     cursor:pointer;
   }
-  .live-check-btn:hover{border-color:var(--petrol-2);}
+  .live-check-btn:hover, .webcheck-btn:hover{border-color:var(--petrol-2);}
   .live-badge{
     font-family:'JetBrains Mono',monospace;
     font-size:10.5px;
@@ -1461,43 +1462,41 @@ function renderWebCheckWidget(g, idPrefix){
   const btnLabel = rec ? '🔄 Website erneut prüfen' : '🌐 Sortiment von Website prüfen';
   const existingHtml = rec ? buildDetectionHtml(rec, null, true) : '';
   return `<div class="live-status" id="webcheck-${id}">
-    ${existingHtml}
-    <button class="live-check-btn webcheck-btn" type="button" data-id="${id}">${btnLabel}</button>
+    <div class="detect-slot" id="webcheck-slot-${id}">${existingHtml}</div>
+    <button class="webcheck-btn" type="button" data-id="${id}">${btnLabel}</button>
   </div>`;
 }
 
 async function handleWebCheckClick(btn){
   const g = groupRegistry[btn.dataset.id];
-  const container = document.getElementById('webcheck-' + btn.dataset.id);
-  if (!g || !container) return;
+  const slot = document.getElementById('webcheck-slot-' + btn.dataset.id);
+  if (!g || !slot) return;
   btn.disabled = true;
   const oldRec = trackingData[groupKey(g.name, g.group)];
-  const oldResult = container.querySelector('.detect-result');
-  if (oldResult) oldResult.remove();
-  const loading = document.createElement('div');
-  loading.className = 'detect-result';
-  loading.innerHTML = '<span class="live-badge checking">Prüfe Website …</span>';
-  container.insertBefore(loading, btn);
+  slot.innerHTML = '<span class="live-badge checking">Prüfe Website …</span>';
 
   const rec = await fetchAndRecordAssortment(g, true);
-  loading.remove();
   btn.disabled = false;
 
   if (!rec){
-    container.insertAdjacentHTML('afterbegin', '<div class="detect-result"><span class="live-badge unknown">Keine Website bekannt</span></div>');
+    slot.innerHTML = '<span class="live-badge unknown">Keine Website bekannt</span>';
     return;
   }
   if (rec.error){
-    container.insertAdjacentHTML('afterbegin', `<div class="detect-result"><span class="live-badge unknown" title="${escapeAttr(rec.error)}">❓ Prüfung fehlgeschlagen</span></div>`);
+    slot.innerHTML = `<span class="live-badge unknown" title="${escapeAttr(rec.error)}">❓ Prüfung fehlgeschlagen</span>`;
     return;
   }
-  container.insertAdjacentHTML('afterbegin', buildDetectionHtml(rec, oldRec ? oldRec.ids : null, false));
+  // Ersetzt IMMER den kompletten Inhalt des Slots (nie anhängen) — so kann
+  // sich bei mehrfachem Klicken oder mehrfacher Verdrahtung nichts aufsummieren.
+  slot.innerHTML = buildDetectionHtml(rec, oldRec ? oldRec.ids : null, false);
   btn.textContent = '🔄 Website erneut prüfen';
   refreshDependentAnalysisViews();
 }
 
 function wireWebCheckButtons(){
   document.querySelectorAll('.webcheck-btn').forEach(btn => {
+    if (btn.dataset.wired) return; // verhindert doppelt gebundene Klick-Handler
+    btn.dataset.wired = '1';
     btn.addEventListener('click', () => handleWebCheckClick(btn));
   });
 }
@@ -1691,6 +1690,8 @@ async function runLiveCheck(btn){
 
 function wireLiveCheckButtons(){
   document.querySelectorAll('.live-check-btn').forEach(btn => {
+    if (btn.dataset.wired) return; // verhindert doppelt gebundene Klick-Handler
+    btn.dataset.wired = '1';
     btn.addEventListener('click', () => runLiveCheck(btn));
   });
 }
