@@ -684,6 +684,7 @@
         <button class="ghost" type="button" id="presetCompact">Vorlage „Kompakt“ setzen</button>
         <button class="ghost" type="button" id="presetStandard">Vorlage „Standard“ setzen</button>
         <button class="ghost" type="button" id="presetClear">Alle zurücksetzen</button>
+        <button class="ghost" type="button" id="resetTrackingBtn" style="margin-left:auto;">🗑 Website-Tracking-Daten zurücksetzen</button>
       </div>
     </div>
   </details>
@@ -997,31 +998,46 @@ const ASSORTMENT_LABELS = {
 // Marken-Datenbank: verbindet Namenserkennung, Betriebstyp-Gruppe, typisches
 // Kernsortiment UND die offizielle Homepage in einem Eintrag. Nur
 // flächendeckende, große Filialisten — bewusst keine Einzelläden/Boutiquen.
-// Ein Markentreffer hier überstimmt EXCLUDE_SHOP_TYPES (z.B. Fressnapf ist
-// oft als shop=pet getaggt, wird aber als Fachmarkt-Filialist trotzdem erfasst).
+// Ein Markentreffer hier überstimmt EXCLUDE_SHOP_TYPES nur für die in
+// "extraShopTypes" gelisteten OSM-Shoptypen (z.B. Fressnapf ist oft als
+// shop=pet getaggt, wird aber als Fachmarkt-Filialist trotzdem erfasst).
+// Für alle anderen Shoptypen gilt: ein Markentreffer wie "Müller" darf NICHT
+// einen inhaltlich völlig anderen Betrieb überstimmen (z.B. "Optic Müller",
+// shop=optician, ist ein Optiker, keine Müller-Drogeriemarkt-Filiale) —
+// siehe brandShopTypeAllowed() und AMBIGUOUS_NAME_DISQUALIFIERS unten.
 // "homepage" ist der Fallback für die automatische Sortiments-Erkennung von
 // der Website (siehe Abschnitt "Automatische Sortimentserkennung" weiter
 // unten) — wird nur benutzt, wenn OSM selbst keinen website-Tag liefert.
 const BRAND_DB = [
   { pattern: /action\b/i, group: "Nonfood-Sonderposten", isFoodStore:false, homepage:"https://www.action.com/de-de/",
+    extraShopTypes:["variety","gift","houseware"],
     assortments: ["deko","bau","spielwaren","schreibwaren","elektro","haushaltswaren","garten","drogerie","tierbedarf","textilien","party"] },
   { pattern: /tedi\b/i, group: "Nonfood-Sonderposten", isFoodStore:false, homepage:"https://www.tedi.com/",
+    extraShopTypes:["variety","gift","houseware"],
     assortments: ["party","deko","bau","schreibwaren","haushaltswaren","drogerie","textilien","garten","tierbedarf","spielwaren","elektro"] },
   { pattern: /mäc[- ]?geiz/i, group: "Nonfood-Sonderposten", isFoodStore:false, homepage:"https://www.mac-geiz.de/",
+    extraShopTypes:["variety","gift"],
     assortments: ["haushaltswaren","deko","drogerie","schreibwaren","party"] },
   { pattern: /kodi\b/i, group: "Nonfood-Sonderposten", isFoodStore:false, homepage:"https://www.kodi.de/",
+    extraShopTypes:["variety","gift","houseware"],
     assortments: ["haushaltswaren","deko","spielwaren","schreibwaren","garten","party"] },
   { pattern: /nanu[- ]?nana/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false, homepage:"https://www.nanu-nana.de/",
+    extraShopTypes:["gift","houseware","candles"],
     assortments: ["deko","schreibwaren","haushaltswaren","party"] },
   { pattern: /woolworth/i, group: "Kaufhaus", isFoodStore:false, homepage:"https://www.woolworth.de/",
+    extraShopTypes:["variety","gift"],
     assortments: ["textilien","haushaltswaren","deko","drogerie","schreibwaren","spielwaren","elektro","tierbedarf","party"] },
   { pattern: /dm[- ]?drogerie/i, group: "Drogeriemarkt", isFoodStore:false, homepage:"https://www.dm.de/",
+    extraShopTypes:["cosmetics"],
     assortments: ["drogerie","baby","tierbedarf","haushaltswaren","schreibwaren","deko","buecher"] },
   { pattern: /rossmann/i, group: "Drogeriemarkt", isFoodStore:false, homepage:"https://www.rossmann.de/",
+    extraShopTypes:["cosmetics"],
     assortments: ["drogerie","baby","tierbedarf","haushaltswaren","schreibwaren","deko","buecher"] },
   { pattern: /budni/i, group: "Drogeriemarkt", isFoodStore:false, homepage:"https://www.budni.de/",
+    extraShopTypes:["cosmetics"],
     assortments: ["drogerie","baby","haushaltswaren","schreibwaren"] },
   { pattern: /müller\b/i, group: "Drogeriemarkt", isFoodStore:false, homepage:"https://www.mueller.de/",
+    extraShopTypes:["cosmetics"],
     assortments: ["drogerie","spielwaren","elektro","buecher","haushaltswaren","schreibwaren","textilien","deko","baby"] },
   { pattern: /obi\b/i, group: "Baumarkt", isFoodStore:false, homepage:"https://www.obi.de/",
     assortments: ["bau","garten","elektro","haushaltswaren"] },
@@ -1036,34 +1052,49 @@ const BRAND_DB = [
   { pattern: /globus[- ]?baumarkt|bauking/i, group: "Baumarkt", isFoodStore:false, homepage:null,
     assortments: ["bau","garten","elektro","haushaltswaren"] },
   { pattern: /media ?markt/i, group: "Elektromarkt", isFoodStore:false, homepage:"https://www.mediamarkt.de/",
+    extraShopTypes:["mobile_phone","computer","appliance"],
     assortments: ["elektro"] },
   { pattern: /saturn\b/i, group: "Elektromarkt", isFoodStore:false, homepage:"https://www.saturn.de/",
+    extraShopTypes:["mobile_phone","computer","appliance"],
     assortments: ["elektro"] },
   { pattern: /expert\b/i, group: "Elektromarkt", isFoodStore:false, homepage:"https://www.expert.de/",
+    extraShopTypes:["mobile_phone","computer","appliance"],
     assortments: ["elektro"] },
   { pattern: /euronics/i, group: "Elektromarkt", isFoodStore:false, homepage:"https://www.euronics.de/",
+    extraShopTypes:["mobile_phone","computer","appliance"],
     assortments: ["elektro"] },
   { pattern: /fressnapf/i, group: "Tierbedarf-Fachmarkt", isFoodStore:false, homepage:"https://www.fressnapf.de/",
+    extraShopTypes:["pet"],
     assortments: ["tierbedarf"] },
   { pattern: /futterhaus/i, group: "Tierbedarf-Fachmarkt", isFoodStore:false, homepage:"https://www.futterhaus.de/",
+    extraShopTypes:["pet"],
     assortments: ["tierbedarf"] },
   { pattern: /\bdepot\b/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false, homepage:"https://www.depot-online.com/",
+    extraShopTypes:["gift","houseware","candles","interior_decoration"],
     assortments: ["deko","haushaltswaren","party","schreibwaren"] },
   { pattern: /butlers/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false, homepage:"https://www.butlers.com/",
+    extraShopTypes:["gift","houseware","interior_decoration"],
     assortments: ["deko","haushaltswaren","party","schreibwaren"] },
   { pattern: /flying tiger/i, group: "Deko- & Geschenke-Fachmarkt", isFoodStore:false, homepage:"https://flyingtiger.com/de/",
+    extraShopTypes:["gift","houseware","variety"],
     assortments: ["deko","haushaltswaren","party","schreibwaren"] },
   { pattern: /thalia\b|weltbild/i, group: "Bücher- & Medien-Fachmarkt", isFoodStore:false, homepage:"https://www.thalia.de/",
+    extraShopTypes:["books","stationery"],
     assortments: ["buecher","schreibwaren","spielwaren"] },
   { pattern: /jysk\b/i, group: "Wohn- & Textilien-Fachmarkt", isFoodStore:false, homepage:"https://jysk.de/",
+    extraShopTypes:["houseware","furniture","interior_decoration","fabric"],
     assortments: ["textilien","haushaltswaren","deko"] },
   { pattern: /\bnkd\b/i, group: "Textil-Discounter", isFoodStore:false, homepage:"https://www.nkd.com/",
+    extraShopTypes:["clothes","fashion_accessories"],
     assortments: ["textilien","baby","haushaltswaren"] },
   { pattern: /\bkik\b/i, group: "Textil-Discounter", isFoodStore:false, homepage:"https://www.kik.de/",
+    extraShopTypes:["clothes","fashion_accessories"],
     assortments: ["textilien","baby","haushaltswaren"] },
   { pattern: /ernsting/i, group: "Textil-Discounter", isFoodStore:false, homepage:"https://www.ernstings-family.de/",
+    extraShopTypes:["clothes","fashion_accessories"],
     assortments: ["textilien","baby","haushaltswaren"] },
   { pattern: /takko/i, group: "Textil-Discounter", isFoodStore:false, homepage:"https://www.takko.com/",
+    extraShopTypes:["clothes","fashion_accessories"],
     assortments: ["textilien","baby","haushaltswaren"] },
   { pattern: /aldi/i, group: "Supermarkt (Nonfood-Aktionsware)", isFoodStore:true, homepage:"https://www.aldi.de/",
     assortments: ["haushaltswaren","garten","elektro","spielwaren","deko"] },
@@ -1092,6 +1123,34 @@ const GROUP_ASSORTMENT_FALLBACK = {
   "Discounter (Nonfood-Aktionsware)": ["haushaltswaren","garten","elektro"],
 };
 
+// Immer sichere OSM-Shoptypen für einen Markentreffer — unabhängig von der
+// jeweiligen Kette (klassische Einzelhandels-Tags).
+const BASE_SAFE_SHOP_TYPES = new Set([
+  'chemist','doityourself','hardware','electronics','department_store',
+  'variety_store','general','supermarket','discount','convenience'
+]);
+
+function brandShopTypeAllowed(brand, shop){
+  if (!shop) return true; // kein shop-Tag vorhanden -> keine Gegenanzeige möglich
+  if (BASE_SAFE_SHOP_TYPES.has(shop)) return true;
+  return !!(brand.extraShopTypes && brand.extraShopTypes.includes(shop));
+}
+
+// Enthält der Name neben dem Markennamen ein eindeutiges Berufs-/Branchenwort,
+// ist es fast sicher NICHT die gesuchte Kette, sondern ein unabhängiger
+// Betrieb mit ähnlichem/gleichem Namen (z.B. "Optic Müller" = Optiker,
+// nicht die Müller-Drogeriemarkt-Kette). Zweite Absicherung zusätzlich zum
+// Shoptyp-Check, greift auch wenn der OSM-Eintrag gar keinen shop-Tag hat.
+const AMBIGUOUS_NAME_DISQUALIFIERS = [
+  /optic|optik/i, /fris[öo]r/i, /bestattung/i, /schneiderei/i, /physio/i,
+  /zahnarzt/i, /rechtsanwalt|anwalt/i, /steuerberater|steuerbüro/i,
+  /uhren|juwelier|goldschmied/i, /schlüsseldienst/i, /copyshop|druckerei/i,
+  /reinigung/i, /\bkfz\b/i, /autohaus|autowerkstatt|autoteile/i, /fahrschule/i,
+  /immobilien/i, /versicherung/i, /\bbank\b|sparkasse|volksbank/i, /apotheke/i,
+  /tierarzt/i, /massage/i, /kosmetikstudio/i, /nagelstudio/i, /tattoo/i,
+  /bäckerei|backstube/i, /metzgerei|fleischerei/i, /gärtnerei/i,
+];
+
 function categorize(tags){
   const shop = tags.shop;
   const name = (tags.name || tags.brand || '');
@@ -1101,7 +1160,10 @@ function categorize(tags){
   if (OWN_BRAND_PATTERN.test(name)) return { group:"REWE (eigene Filiale)", isFoodStore:true, own:true, brandAssortments:null, homepage:null };
 
   const brand = BRAND_DB.find(b => b.pattern.test(name));
-  if (brand) return { group: brand.group, isFoodStore: brand.isFoodStore, own:false, brandAssortments: brand.assortments, homepage: brand.homepage };
+  const brandUsable = brand
+    && brandShopTypeAllowed(brand, shop)
+    && !AMBIGUOUS_NAME_DISQUALIFIERS.some(p => p.test(name));
+  if (brandUsable) return { group: brand.group, isFoodStore: brand.isFoodStore, own:false, brandAssortments: brand.assortments, homepage: brand.homepage };
 
   if (EXCLUDE_SHOP_TYPES.has(shop)) return null;
 
@@ -1157,6 +1219,24 @@ document.getElementById('presetClear').addEventListener('click', () => {
   reweAssortment = new Set();
   saveReweAssortment(); renderReweGrid();
   if (currentShops && currentShops.length) renderReweTab(currentShops);
+});
+document.getElementById('resetTrackingBtn').addEventListener('click', () => {
+  const count = Object.keys(trackingData).length;
+  if (!count){ setStatus('Es sind noch keine Website-Tracking-Daten gespeichert.'); return; }
+  const ok = confirm(`${count} gespeicherte Website-Prüfung(en) wirklich löschen? Das kann z.B. sinnvoll sein, wenn dabei fälschlich erkannte Sortimente gespeichert wurden.`);
+  if (!ok) return;
+  trackingData = {};
+  saveTrackingData();
+  detectedAssortmentsByKey = buildDetectedMap();
+  setStatus('Website-Tracking-Daten zurückgesetzt.');
+  if (currentShops && currentShops.length){
+    const gaps = gapIdSet(computeGapAnalysis(currentShops));
+    renderTable(currentShops, gaps);
+    renderAssortmentBreakdown(currentShops, gaps);
+    renderReweTab(currentShops);
+    const radiusKm = parseFloat(document.getElementById('radius').value) || 10;
+    if (currentCenter) renderSummary(currentShops, currentOwnStores, radiusKm, currentCenter.label);
+  }
 });
 
 // =========================================================================
